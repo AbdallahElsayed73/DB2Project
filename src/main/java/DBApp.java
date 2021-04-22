@@ -101,9 +101,8 @@ public class DBApp implements DBAppInterface
         }
 
         Object clustObj = colNameValue.get(currentTable.clusteringColumn);
-        if(clustObj instanceof Integer)
-        {
-            int clustVal = (Integer) clustObj;
+
+
             if(currentTable.pageNames.size()==0)
             {
                 currentTable.pageNames.add(tableName+"0");
@@ -121,41 +120,9 @@ public class DBApp implements DBAppInterface
             {
                 int lo = 0;
                 int hi = currentTable.pageRanges.size()-1;
-                int i = -1;
-                while(lo<=hi)
-                {
-                    int mid = (lo+hi)/2;
-                    int min = (Integer) currentTable.pageRanges.get(mid).min, max =  (Integer) currentTable.pageRanges.get(mid).max;
-                    if(clustVal>=min && clustVal<=max)
-                    {
-                        i = mid;
-                        break;
-                    }
-                   else if(max<clustVal)
-                    {
-                        i=mid;
-                        lo = mid +1;
-                    }
-                    else if(min> clustVal) {
-                        i = mid;
-                        hi = mid - 1;
-                    }
+                int i = binarySearchTable(hi,lo,clustObj,currentTable);
+                i=getPageIndex(currentTable,clustObj,i);
 
-                }
-                int min = (Integer) currentTable.pageRanges.get(i).min, max =  (Integer) currentTable.pageRanges.get(i).max;
-
-                if(currentTable.pageSizes.get(i)==200)
-                {
-                    if(max<clustVal)
-                    {
-                        int i2 = Math.min(currentTable.pageRanges.size()-1, i+1);
-                        if(currentTable.pageSizes.get(i2)<200)i=i2;
-                    }
-                    else if(min>clustVal){
-                        int i2 = Math.max(0, i-1);
-                        if(currentTable.pageSizes.get(i2)<200)i=i2;
-                    }
-                }
                 FileInputStream fileIn = new FileInputStream("src/main/resources/+"+currentTable.pageNames.get(i) +".ser");
                 ObjectInputStream in = new ObjectInputStream(fileIn);
                 Vector<Hashtable> currentPage= (Vector<Hashtable>) in.readObject();
@@ -163,46 +130,111 @@ public class DBApp implements DBAppInterface
                 fileIn.close();
 
                 lo = 0; hi = currentPage.size()-1;
-                int ind=-1;
-                while(lo<=hi)
-                {
-                    int mid = lo+hi>>2;
-                    int curValue = (Integer)currentPage.get(mid).get(currentTable.clusteringColumn);
-                    int clusterValue = (Integer)colNameValue.get(currentTable.clusteringColumn);
-                    if(curValue>= clusterValue)
-                    {
-                        ind=mid;
-                        hi=mid-1;
-                    }
-                    else
-                        lo = mid+1;
-                }
+
+                int ind=binarySearchPage(hi,lo,clustObj,currentPage,currentTable);
                 if(ind==-1)currentPage.add(colNameValue);
                 else currentPage.add(ind,colNameValue);
+
                 updatePageInfo(currentTable,currentPage,i);
 
-
                 if(currentTable.pageSizes.get(i)>200)
-                {
-                    String pageName = currentTable.name + currentTable.pageSizes.size();
-                    currentTable.pageNames.add(i+1,pageName);
-
-                    Vector<Hashtable> newPage = new Vector<Hashtable>();
-                    for(int j = 100;j<=200;j++)
-                    {
-                        Hashtable entry = currentPage.get(j);
-                        newPage.add(entry);
-                        currentPage.remove(j);
-                    }
-                    updatePageInfo(currentTable,currentPage,i);
-                    updatePageInfo(currentTable,newPage,i+1);
-                }
-
+                    splitPage(currentTable,currentPage,i);
             }
-        }
+
 
     }
 
+    public int binarySearchTable(int hi, int lo, Object clustVal,Table currentTable) {
+        int idx = -1;
+        while(lo<=hi)
+        {
+            int mid = (lo+hi)/2;
+            Object min = currentTable.pageRanges.get(mid).min;
+            Object max = currentTable.pageRanges.get(mid).max;
+            int ans1 =compare(clustVal,min);
+            int ans2 = compare(max,clustVal);
+            if(ans1>=0 && ans2>=0)
+            {
+                idx = mid;
+                break;
+            }
+            else if(ans2<0)
+            {
+                idx=mid;
+                lo = mid +1;
+            }
+            else if(ans1<0) {
+                idx = mid;
+                hi = mid - 1;
+            }
+        }
+        return idx;
+    }
+    public int binarySearchPage(int hi, int lo, Object clusterValue,Vector<Hashtable> currentPage,Table currentTable){
+        int ind =-1;
+        while(lo<=hi){
+            int mid = lo+hi>>2;
+            Object V = currentPage.get(mid).get(currentTable.clusteringColumn);
+            int ans = compare(V,clusterValue);
+            if(ans>=0){
+                ind=mid;
+                hi=mid-1;
+            }
+            else
+                lo = mid+1;
+        }
+        return ind;
+    }
+    public int compare(Object a , Object b){
+        int ans;
+        if(a instanceof Integer){
+            ans=((Integer)a).compareTo((Integer)b);
+        }
+        else if (a instanceof  Double){
+            ans=((Double)a).compareTo((Double)b);
+        }
+        else if (a instanceof String ){
+            ans=((String)a).compareTo((String)b);
+        }
+        else {
+            ans=((Date)a).compareTo((Date)b);
+        }
+        return ans;
+    }
+
+    public void splitPage(Table currentTable,Vector<Hashtable> currentPage, int i ){
+        String pageName = currentTable.name + currentTable.pageSizes.size();
+        currentTable.pageNames.add(i+1,pageName); // shouldnt we have called it pageName + i ?
+        Vector<Hashtable> newPage = new Vector<Hashtable>();
+        for(int j = 100;j<=200;j++)
+        {
+            Hashtable entry = currentPage.get(j);
+            newPage.add(entry);
+            currentPage.remove(j);
+        }
+        updatePageInfo(currentTable,currentPage,i);
+        updatePageInfo(currentTable,newPage,i+1);
+    }
+    public int getPageIndex(Table currentTable, Object clustVal, int i){
+
+        Object min = currentTable.pageRanges.get(i).min;
+        Object max = currentTable.pageRanges.get(i).max;
+        int ans1 =compare(clustVal,min);
+        int ans2 = compare(max,clustVal);
+        if(currentTable.pageSizes.get(i)==200)
+        {
+            if(ans2<0)
+            {
+                int i2 = Math.min(currentTable.pageRanges.size()-1, i+1);
+                if(currentTable.pageSizes.get(i2)<200)i=i2;
+            }
+            else if(ans1<0){
+                int i2 = Math.max(0, i-1);
+                if(currentTable.pageSizes.get(i2)<200)i=i2;
+            }
+        }
+        return i;
+    }
     @Override
     public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException {
 
@@ -324,11 +356,7 @@ public class DBApp implements DBAppInterface
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
         String strTableName = "Student";
         DBApp dbApp = new DBApp( );
-        Hashtable htblColNameValue = new Hashtable( );
-        htblColNameValue.put("id", new Integer( 2343432 ));
-        htblColNameValue.put("name", new String("Ahmed Noor" ) );
-        htblColNameValue.put("gpa", new Double( 0.95 ) );
-        dbApp.insertIntoTable( strTableName , htblColNameValue );
+
 
 
 
