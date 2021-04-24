@@ -8,6 +8,7 @@ public class Table implements Serializable
     Vector<pair> pageRanges;
     Vector<String> pageNames;
     Vector<Integer>pageSizes;
+    Vector<String> availableNames;
     public Table(String name, String clusteringColumn)
     {
         this.name = name;
@@ -15,6 +16,7 @@ public class Table implements Serializable
         pageRanges = new Vector<pair>();
         pageNames = new Vector<String>();
         pageSizes = new Vector<Integer>();
+        availableNames = new Vector<String>();
     }
 
 
