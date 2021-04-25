@@ -1,7 +1,0 @@
-"Table Name","Column Name","Column Type","ClusteringKey","Indexed","min","max"
-"Student","gpa","java.lang.Double","false","false","0.7","5"
-"Student","name","java.lang.String","false","false","A","zzzzzzzzzzzzzzzzzzzzzzzzz"
-"Student","id","java.lang.Integer","true","false","1","255646513"
-"TA","gpa","java.lang.Double","false","false","0.7","5"
-"TA","name","java.lang.String","false","false","A","zzzzzzzzzzzzzzzzzzzzzzz"
-"TA","id","java.lang.Integer","true","false","1","255646513"
