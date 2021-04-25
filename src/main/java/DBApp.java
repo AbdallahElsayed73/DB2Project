@@ -8,8 +8,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-public class DBApp implements DBAppInterface
-{
+public class DBApp implements DBAppInterface {
     Vector<Table> tables;
     int maxPageSize;
     int maxIndexBucket;
@@ -18,25 +17,23 @@ public class DBApp implements DBAppInterface
         try {
             tables = readTables();
 
-        }
-        catch (FileNotFoundException e) {
+        } catch (FileNotFoundException e) {
             tables = new Vector<>();
             writeTables();
         }
         Properties prop = new Properties();
         String propFileName = "config.properties";
         String fileName = "src/main/resources/DBApp.config";
-        InputStream is ;
+        InputStream is;
         is = new FileInputStream(fileName);
         prop.load(is);
-        maxPageSize=Integer.parseInt(prop.getProperty("MaximumRowsCountinPage"));
-        maxIndexBucket=Integer.parseInt(prop.getProperty("MaximumKeysCountinIndexBucket"));
+        maxPageSize = Integer.parseInt(prop.getProperty("MaximumRowsCountinPage"));
+        maxIndexBucket = Integer.parseInt(prop.getProperty("MaximumKeysCountinIndexBucket"));
 
     }
 
     @Override
-    public void init() throws IOException {
-
+    public void init(){
 
 
     }
@@ -47,27 +44,27 @@ public class DBApp implements DBAppInterface
 
 
         tables = readTables();
-        for(Table t : tables)
+        for (Table t : tables)
             if (t.name.equals(tableName)) {
                 throw new DBAppException("table is already created");
             }
 
-        String clusterColumn="";
+        String clusterColumn = "";
         String csv = "src/main/resources/metadata.csv";
-        CSVWriter writer = new CSVWriter(new FileWriter(csv,true));
+        CSVWriter writer = new CSVWriter(new FileWriter(csv, true));
 
         //Create record
         Enumeration<String> enumeration = colNameType.keys();
-        while(enumeration.hasMoreElements()) {
+        while (enumeration.hasMoreElements()) {
             String key = enumeration.nextElement();
 
             //Create record
             String type = colNameType.get(key);
-            String min = (String)colNameMin.get(key);
-            String max = (String)colNameMax.get(key);
+            String min = (String) colNameMin.get(key);
+            String max = (String) colNameMax.get(key);
             boolean clust = key.equals(clusteringKey);
-            if(clust) clusterColumn = key;
-            String [] record = {tableName, key,type, clust+"","false", min, max};
+            if (clust) clusterColumn = key;
+            String[] record = {tableName, key, type, clust + "", "false", min, max};
             //Write the record to file
             writer.writeNext(record);
 
@@ -75,7 +72,7 @@ public class DBApp implements DBAppInterface
 
         }
         writer.close();
-        tables.add(new Table(tableName,clusterColumn));
+        tables.add(new Table(tableName, clusterColumn));
         writeTables();
     }
 
@@ -92,137 +89,129 @@ public class DBApp implements DBAppInterface
         Object clustObj = colNameValue.get(currentTable.clusteringColumn);
 
 
-            if(currentTable.pageNames.size()==0)
-            {
-                currentTable.pageNames.add(tableName+"0");
-                currentTable.pageRanges.add(new Table.pair(clustObj,clustObj));
-                currentTable.pageSizes.add(0);
-                Vector<Hashtable> page = new Vector<Hashtable>();
-                page.add(colNameValue);
-                updatePageInfo(currentTable, page,0);
-            }
-            else
-            {
-                int pageIndex = binarySearchTable(clustObj,currentTable);
-                pageIndex=getPageIndex(currentTable,clustObj,pageIndex);
-                Vector<Hashtable> currentPage = readPage(currentTable, pageIndex);
+        if (currentTable.pageNames.size() == 0) {
+            currentTable.pageNames.add(tableName + "0");
+            currentTable.pageRanges.add(new Table.pair(clustObj, clustObj));
+            currentTable.pageSizes.add(0);
+            Vector<Hashtable> page = new Vector<Hashtable>();
+            page.add(colNameValue);
+            updatePageInfo(currentTable, page, 0);
+        } else {
+            int pageIndex = binarySearchTable(clustObj, currentTable);
+            pageIndex = getPageIndex(currentTable, clustObj, pageIndex);
+            Vector<Hashtable> currentPage = readPage(currentTable, pageIndex);
 
-                int ind=binarySearchPage(clustObj,currentPage,currentTable);
-                if(ind==-1)currentPage.add(colNameValue);
-                else currentPage.add(ind,colNameValue);
+            int ind = binarySearchPage(clustObj, currentPage, currentTable);
+            if (ind == -1) currentPage.add(colNameValue);
+            else currentPage.add(ind, colNameValue);
 
-                updatePageInfo(currentTable,currentPage,pageIndex);
+            updatePageInfo(currentTable, currentPage, pageIndex);
 
-                if(currentTable.pageSizes.get(pageIndex)>maxPageSize)
-                    splitPage(currentTable,currentPage,pageIndex);
-            }
+            if (currentTable.pageSizes.get(pageIndex) > maxPageSize)
+                splitPage(currentTable, currentPage, pageIndex);
+        }
 
 
     }
 
-    public int binarySearchTable(Object clustVal,Table currentTable) {
+    public int binarySearchTable(Object clustVal, Table currentTable) {
         int lo = 0;
-        int hi = currentTable.pageRanges.size()-1;
+        int hi = currentTable.pageRanges.size() - 1;
         int idx = -1;
-        while(lo<=hi)
-        {
-            int mid = (lo+hi)/2;
+        while (lo <= hi) {
+            int mid = (lo + hi) / 2;
             Object min = currentTable.pageRanges.get(mid).min;
             Object max = currentTable.pageRanges.get(mid).max;
-            int comMin =compare(clustVal,min);
-            int comMax = compare(max,clustVal);
-            if(comMin>=0 && comMax>=0)
-            {
+            int comMin = compare(clustVal, min);
+            int comMax = compare(max, clustVal);
+            if (comMin >= 0 && comMax >= 0) {
                 idx = mid;
                 break;
-            }
-            else if(comMax<0)
-            {
-                idx=mid;
-                lo = mid +1;
-            }
-            else {
+            } else if (comMax < 0) {
+                idx = mid;
+                lo = mid + 1;
+            } else {
                 idx = mid;
                 hi = mid - 1;
             }
         }
         return idx;
     }
-    public int binarySearchPage(Object clusterValue,Vector<Hashtable> currentPage,Table currentTable){
+
+    public int binarySearchPage(Object clusterValue, Vector<Hashtable> currentPage, Table currentTable) {
         int lo = 0;
-        int hi = currentPage.size()-1;
-        int ind =-1;
-        while(lo<=hi){
-            int mid = lo+hi>>2;
+        int hi = currentPage.size() - 1;
+        int ind = -1;
+        while (lo <= hi) {
+            int mid = (lo + hi) >> 1;
             Object V = currentPage.get(mid).get(currentTable.clusteringColumn);
-            int ans = compare(V,clusterValue);
-            if(ans>=0){
-                ind=mid;
-                hi=mid-1;
-            }
-            else
-                lo = mid+1;
+            int ans = compare(V, clusterValue);
+            if (ans >= 0) {
+                ind = mid;
+                hi = mid - 1;
+            } else
+                lo = mid + 1;
         }
         return ind;
     }
-    public int compare(Object a , Object b){
+
+    public int compare(Object a, Object b) {
         int ans;
-        if(a instanceof Integer){
-            ans=((Integer)a).compareTo((Integer)b);
+        if (a instanceof Integer) {
+            ans = ((Integer) a).compareTo((Integer) b);
+        } else if (a instanceof Double) {
+            ans = ((Double) a).compareTo((Double) b);
+        } else if (a instanceof String) {
+            if(((String) a).length() == ((String)b).length())
+                ans = ((String) a).compareTo((String) b);
+            else
+                ans = ((String) a).length() > ((String)b).length()? 1:-1;
+
         }
-        else if (a instanceof  Double){
-            ans=((Double)a).compareTo((Double)b);
-        }
-        else if (a instanceof String ) ans = ((String) a).compareTo((String) b);
         else {
-            ans=((Date)a).compareTo((Date)b);
+            ans = -1 * ((Date) a).compareTo((Date) b);
         }
         return ans;
     }
 
-    public void splitPage(Table currentTable,Vector<Hashtable> currentPage, int i ) throws IOException {
+    public void splitPage(Table currentTable, Vector<Hashtable> currentPage, int i) throws IOException {
         String pageName;
-        if(currentTable.availableNames.size()>0)
-        {
+        if (currentTable.availableNames.size() > 0) {
             pageName = currentTable.availableNames.get(0);
             currentTable.availableNames.remove(0);
 
-        }
-        else
-        {
+        } else {
             pageName = currentTable.name + currentTable.pageSizes.size();
         }
-        currentTable.pageNames.add(i+1,pageName); // shouldnt we have called it pageName + i ?
         Vector<Hashtable> newPage = new Vector<>();
-        for(int j = maxPageSize/2;j<=maxPageSize;j++)
-        {
+        for (int j = maxPageSize / 2; j <= maxPageSize; j++) {
             Hashtable entry = currentPage.get(j);
             newPage.add(entry);
-            currentPage.remove(j);
         }
-        updatePageInfo(currentTable,currentPage,i);
-        updatePageInfo(currentTable,newPage,i+1);
+        while(currentPage.size()>maxPageSize/2)
+            currentPage.remove(currentPage.size()-1);
+        updatePageInfo(currentTable, currentPage, i);
+        addNewPage(currentTable,pageName, newPage, i + 1);
     }
-    public int getPageIndex(Table currentTable, Object clustVal, int i){
+
+    public int getPageIndex(Table currentTable, Object clustVal, int i) {
 
         Object min = currentTable.pageRanges.get(i).min;
         Object max = currentTable.pageRanges.get(i).max;
-        int ans1 =compare(clustVal,min);
-        int ans2 = compare(max,clustVal);
-        if(currentTable.pageSizes.get(i)==maxPageSize)
-        {
-            if(ans2<0)
-            {
-                int i2 = Math.min(currentTable.pageRanges.size()-1, i+1);
-                if(currentTable.pageSizes.get(i2)<maxPageSize)i=i2;
-            }
-            else if(ans1<0){
-                int i2 = Math.max(0, i-1);
-                if(currentTable.pageSizes.get(i2)<maxPageSize)i=i2;
+        int ans1 = compare(clustVal, min);
+        int ans2 = compare(max, clustVal);
+        if (currentTable.pageSizes.get(i) == maxPageSize) {
+            if (ans2 < 0) {
+                int i2 = Math.min(currentTable.pageRanges.size() - 1, i + 1);
+                if (currentTable.pageSizes.get(i2) < maxPageSize) i = i2;
+            } else if (ans1 < 0) {
+                int i2 = Math.max(0, i - 1);
+                if (currentTable.pageSizes.get(i2) < maxPageSize) i = i2;
             }
         }
         return i;
     }
+
     @Override
     public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ParseException, ClassNotFoundException {
         validate(tableName, columnNameValue);
@@ -231,24 +220,24 @@ public class DBApp implements DBAppInterface
         Object min = currentTable.pageRanges.get(pageNumber).min;
         Object max = currentTable.pageRanges.get(pageNumber).max;
         int compareMin = compare(clusteringKeyValue, min);
-        int compareMax = compare(clusteringKeyValue,max);
+        int compareMax = compare(clusteringKeyValue, max);
         String clusteringColumn = currentTable.clusteringColumn;
-        if(compareMin <0  || compareMax>0)throw new DBAppException("A record with given clustering key value is not found");
+        if (compareMin < 0 || compareMax > 0)
+            throw new DBAppException("A record with given clustering key value is not found");
         Vector<Hashtable> currentPage = readPage(currentTable, pageNumber);
-        int ind = binarySearchPage(clusteringKeyValue,currentPage,currentTable);
-        if( compare(currentPage.get(ind).get(clusteringColumn),(clusteringKeyValue)) == 0) {
-            Iterator<String>it = columnNameValue.keySet().iterator();
-            while(it.hasNext())
-            {
+        int ind = binarySearchPage(clusteringKeyValue, currentPage, currentTable);
+        if (compare(currentPage.get(ind).get(clusteringColumn), (clusteringKeyValue)) == 0) {
+            Iterator<String> it = columnNameValue.keySet().iterator();
+            while (it.hasNext()) {
                 String key = it.next();
                 Object val = columnNameValue.get(key);
-                currentPage.get(ind).put(key,val);
+                currentPage.get(ind).put(key, val);
             }
             updatePageInfo(currentTable, currentPage, pageNumber);
-        }else{
+        } else {
             throw new DBAppException("A record with given clustering key value is not found");
         }
-        
+
     }
 
 
@@ -257,56 +246,52 @@ public class DBApp implements DBAppInterface
         validate(tableName, columnNameValue);
         Table currentTable = findTable(tableName);
         String clusteringColumn = currentTable.clusteringColumn;
-        if(columnNameValue.contains(clusteringColumn))
-        {
+        if (columnNameValue.contains(clusteringColumn)) {
             Object clusteringValue = columnNameValue.get(clusteringColumn);
             int pageNumber = binarySearchTable(clusteringValue, currentTable);
             int compareMin = compare(currentTable.pageRanges.get(pageNumber).min, clusteringValue);
             int compareMax = compare(currentTable.pageRanges.get(pageNumber).max, clusteringValue);
-            if(compareMin>0 || compareMax<0) throw new DBAppException("A record with the given values is not found");
+            if (compareMin > 0 || compareMax < 0)
+                throw new DBAppException("A record with the given values is not found");
             Vector<Hashtable> currentPage = readPage(currentTable, pageNumber);
             int ind = binarySearchPage(clusteringValue, currentPage, currentTable);
-            if(compare(currentPage.get(ind).get(clusteringColumn), clusteringValue) !=0) throw new DBAppException("A record with the given values is not found");
+            if (compare(currentPage.get(ind).get(clusteringColumn), clusteringValue) != 0)
+                throw new DBAppException("A record with the given values is not found");
 
 
-            Iterator<String>it = columnNameValue.keySet().iterator();
-            while(it.hasNext())
-            {
+            Iterator<String> it = columnNameValue.keySet().iterator();
+            while (it.hasNext()) {
                 String key = it.next();
                 Object inputVal = columnNameValue.get(key);
                 Object recordVal = currentPage.get(ind).get(key);
-                if(compare(inputVal, recordVal) !=0)
+                if (compare(inputVal, recordVal) != 0)
                     throw new DBAppException("A record with the given values is not found");
 
             }
             currentPage.remove(ind);
             updatePageInfo(currentTable, currentPage, pageNumber);
-        }
-        else
-        {
+        } else {
             boolean found = false;
-            for(int i=0;i<currentTable.pageNames.size();i++)
-            {
+            for (int i = 0; i < currentTable.pageNames.size(); i++) {
                 boolean updatePage = false;
-                Vector<Hashtable> currentPage = readPage(currentTable,i);
-               loop: for(Hashtable<String,Object> record : currentPage)
-                {
-                    Iterator<String>it = columnNameValue.keySet().iterator();
-                    while(it.hasNext())
-                    {
+                Vector<Hashtable> currentPage = readPage(currentTable, i);
+                loop:
+                for (Hashtable<String, Object> record : currentPage) {
+                    Iterator<String> it = columnNameValue.keySet().iterator();
+                    while (it.hasNext()) {
                         String key = it.next();
                         Object inputVal = columnNameValue.get(key);
                         Object recordVal = currentPage.get(i).get(key);
-                        if(compare(inputVal, recordVal) !=0)
+                        if (compare(inputVal, recordVal) != 0)
                             continue loop;
                     }
                     currentPage.remove(record);
                     updatePage = true;
                     found = true;
                 }
-                if(updatePage) updatePageInfo(currentTable,currentPage,i);
+                if (updatePage) updatePageInfo(currentTable, currentPage, i);
             }
-            if(!found)  throw new DBAppException("A record with the given values is not found");
+            if (!found) throw new DBAppException("A record with the given values is not found");
         }
     }
 
@@ -319,10 +304,8 @@ public class DBApp implements DBAppInterface
     public Table findTable(String tableName) throws IOException, ClassNotFoundException {
         Vector<Table> tables = readTables();
         Table currentTable = null;
-        for(Table t : tables)
-        {
-            if(t.name.equals(tableName))
-            {
+        for (Table t : tables) {
+            if (t.name.equals(tableName)) {
                 currentTable = t;
                 break;
             }
@@ -332,7 +315,7 @@ public class DBApp implements DBAppInterface
 
 
     public Vector<Table> readTables() throws IOException, ClassNotFoundException {
-        if(tables!=null)return tables;
+        if (tables != null) return tables;
         FileInputStream fileIn = new FileInputStream("src/main/resources/tables.ser");
         ObjectInputStream in = new ObjectInputStream(fileIn);
         tables = (Vector<Table>) in.readObject();
@@ -349,9 +332,10 @@ public class DBApp implements DBAppInterface
         out.close();
         fileOut.close();
     }
+
     public void writePage(String pageName, Vector<Hashtable> page) throws IOException {
         FileOutputStream fileOut =
-                new FileOutputStream("src/main/resources/data/"+ pageName+".ser");
+                new FileOutputStream("src/main/resources/data/" + pageName + ".ser");
         ObjectOutputStream out = new ObjectOutputStream(fileOut);
         out.writeObject(page);
         out.close();
@@ -360,10 +344,9 @@ public class DBApp implements DBAppInterface
 
     public void updatePageInfo(Table currentTable, Vector<Hashtable> currentPage, int i) throws IOException {
         String name = currentTable.pageNames.get(i);
-        File file = new File("src/main/resources/data/"+ name+".ser");
+        File file = new File("src/main/resources/data/" + name + ".ser");
         file.delete();
-        if(currentPage.size()==0)
-        {
+        if (currentPage.size() == 0) {
 
             currentTable.availableNames.add(name);
             currentTable.pageNames.remove(i);
@@ -373,9 +356,18 @@ public class DBApp implements DBAppInterface
             return;
         }
         Object min = currentPage.get(0).get(currentTable.clusteringColumn);
-        Object max = currentPage.get(currentPage.size()-1).get(currentTable.clusteringColumn);
-        currentTable.pageSizes.set(i,currentPage.size());
-        currentTable.pageRanges.set(i,new Table.pair(min, max));
+        Object max = currentPage.get(currentPage.size() - 1).get(currentTable.clusteringColumn);
+        currentTable.pageSizes.set(i, currentPage.size());
+        currentTable.pageRanges.set(i, new Table.pair(min, max));
+        writePage(name, currentPage);
+        writeTables();
+    }
+    public void addNewPage(Table currentTable,String name, Vector<Hashtable> currentPage, int i) throws IOException {
+        Object min = currentPage.get(0).get(currentTable.clusteringColumn);
+        Object max = currentPage.get(currentPage.size() - 1).get(currentTable.clusteringColumn);
+        currentTable.pageSizes.add(i, currentPage.size());
+        currentTable.pageRanges.add(i, new Table.pair(min, max));
+        currentTable.pageNames.add(i,name);
         writePage(name, currentPage);
         writeTables();
     }
@@ -396,68 +388,53 @@ public class DBApp implements DBAppInterface
                     boolean clust = Boolean.parseBoolean(record[3]);
                     String minSt = record[5], maxSt = record[6];
                     Object valobj = colNameValue.get(colName);
-                    if(valobj == null)
+                    if (valobj == null)
                         throw new DBAppException("A column entry is missing");
-                    if(valobj instanceof Integer)
-                    {
-                        if(colType.equals("java.lang.Integer"))
-                        {
+                    if (valobj instanceof Integer) {
+                        if (colType.equals("java.lang.Integer")) {
                             int val = (Integer) valobj;
                             int min = Integer.parseInt(minSt), max = Integer.parseInt(maxSt);
-                            if(val<min || val > max)
-                                throw new DBAppException(colName+ " value out of bound");
-                        }
-                        else
-                            throw new DBAppException("not compatible data type at "+colName);
+                            if (val < min || val > max)
+                                throw new DBAppException(colName + " value out of bound");
+                        } else
+                            throw new DBAppException("not compatible data type at " + colName);
 
-                    }
-                    else if(valobj instanceof Double)
-                    {
-                        if(colType.equals("java.lang.Double"))
-                        {
+                    } else if (valobj instanceof Double) {
+                        if (colType.equals("java.lang.Double")) {
                             double val = (Double) valobj;
                             double min = Double.parseDouble(minSt), max = Double.parseDouble(maxSt);
-                            if(val<min || val > max)
-                                throw new DBAppException(colName+ " value out of bound");
-                        }
-                        else
-                            throw new DBAppException("not compatible data type at "+colName);
-                    }
-                    else if(valobj instanceof Date)
-                    {
-                        if(colType.equals("java.util.Date"))
-                        {
-                            SimpleDateFormat formatter=new SimpleDateFormat("yyyy-MM-dd");
-                            Date val =(Date) valobj;
-                            Date min = formatter.parse(minSt), max =formatter.parse(maxSt);
-                            if(val.compareTo(min)<0 || val.compareTo(max)>0)
-                                throw new DBAppException(colName+ " value out of bound");
-                        }
-                        else
-                            throw new DBAppException("not compatible data type at "+colName);
-                    }
-                    else if(valobj instanceof String)
-                    {
-                        if(colType.equals("java.lang.String"))
-                        {
+                            if (val < min || val > max)
+                                throw new DBAppException(colName + " value out of bound");
+                        } else
+                            throw new DBAppException("not compatible data type at " + colName);
+                    } else if (valobj instanceof Date) {
+                        if (colType.equals("java.util.Date")) {
+                            SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
+                            Date val = (Date) valobj;
+                            Date min = formatter.parse(minSt), max = formatter.parse(maxSt);
+                            if (val.compareTo(min) < 0 || val.compareTo(max) > 0)
+                                throw new DBAppException(colName + " value out of bound");
+                        } else
+                            throw new DBAppException("not compatible data type at " + colName);
+                    } else if (valobj instanceof String) {
+                        if (colType.equals("java.lang.String")) {
                             String val = (String) valobj;
-                            if(val.compareTo(minSt)<0 || val.compareTo(maxSt)>0)
-                                throw new DBAppException(colName+ " value out of bound");
-                        }
-                        else
-                            throw new DBAppException("not compatible data type at "+colName);
+                            if (compare(val,minSt) < 0 || compare(val,maxSt) > 0)
+                                throw new DBAppException(colName + " value out of bound");
+                        } else
+                            throw new DBAppException("not compatible data type at " + colName);
                     }
                 }
             }
         }
-        if(!found)
+        if (!found)
             throw new DBAppException("table not found");
     }
 
     public Vector<Hashtable> readPage(Table currentTable, int i) throws IOException, ClassNotFoundException {
-        FileInputStream fileIn = new FileInputStream("src/main/resources/data/"+currentTable.pageNames.get(i) +".ser");
+        FileInputStream fileIn = new FileInputStream("src/main/resources/data/" + currentTable.pageNames.get(i) + ".ser");
         ObjectInputStream in = new ObjectInputStream(fileIn);
-        Vector<Hashtable> currentPage= (Vector<Hashtable>) in.readObject();
+        Vector<Hashtable> currentPage = (Vector<Hashtable>) in.readObject();
         in.close();
         fileIn.close();
         return currentPage;
@@ -465,7 +442,71 @@ public class DBApp implements DBAppInterface
 
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
-    DBApp app = new DBApp();
+//        DBApp dbApp = new DBApp();
+//
+//
+//        String tableName = "courses";
+//
+//        Hashtable<String, String> htblColNameType = new Hashtable<String, String>();
+//        htblColNameType.put("date_added", "java.util.Date");
+//        htblColNameType.put("course_id", "java.lang.String");
+//        htblColNameType.put("course_name", "java.lang.String");
+//        htblColNameType.put("hours", "java.lang.Integer");
+//
+//
+//        Hashtable<String, Object> minValues = new Hashtable<>();
+//        minValues.put("date_added", "1990-01-01");
+//        minValues.put("course_id", "100");
+//        minValues.put("course_name", "AAAAAA");
+//        minValues.put("hours", "1");
+//
+//        Hashtable<String, Object> maxValues = new Hashtable<>();
+//        maxValues.put("date_added", "2000-12-31");
+//        maxValues.put("course_id", "2000");
+//        maxValues.put("course_name", "zzzzzz");
+//        maxValues.put("hours", "24");
+//
+//        dbApp.createTable(tableName, "date_added", htblColNameType, minValues, maxValues);
+//
+//
+//        BufferedReader coursesTable = new BufferedReader(new FileReader("src/main/resources/courses_table.csv"));
+//        String record;
+//        Hashtable<String, Object> row = new Hashtable<>();
+//
+//        int i=6;
+//        while ((record = coursesTable.readLine()) != null &&  i-->0) {
+//            String[] fields = record.split(",");
+//
+//
+//
+//            int year = Integer.parseInt(fields[0].trim().substring(0, 4));
+//            int month = Integer.parseInt(fields[0].trim().substring(5, 7));
+//            int day = Integer.parseInt(fields[0].trim().substring(8));
+//
+//            Date dateAdded = new Date(year - 1900, month - 1, day);
+//
+//            row.put("date_added", dateAdded);
+//
+//            row.put("course_id", fields[1]);
+//            row.put("course_name", fields[2]);
+//            row.put("hours", Integer.parseInt(fields[3]));
+//
+//
+//            dbApp.insertIntoTable("courses", row);
+//            System.out.println("------------------------------------------------------");
+//            row.clear();
+//
+//        }
+//
+//        coursesTable.close();
+
+
+        FileInputStream fileIn = new FileInputStream("src/main/resources/data/courses0.ser");
+        ObjectInputStream in = new ObjectInputStream(fileIn);
+        Vector<Hashtable> currentPage = (Vector<Hashtable>) in.readObject();
+        in.close();
+        fileIn.close();
+        System.out.println(currentPage.get(189));
 
     }
 }
