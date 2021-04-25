@@ -14,17 +14,17 @@ public class DBApp implements DBAppInterface
 
     public DBApp() throws IOException, ClassNotFoundException {
         try {
-            tables = (Vector<Table>) readTables();
+            tables = readTables();
 
         }
         catch (FileNotFoundException e) {
-            tables = new Vector<Table>();
+            tables = new Vector<>();
             writeTables();
             this.init();
         }
         Properties prop = new Properties();
         String fileName = "src/main/resources/DBApp.config";
-        InputStream is = null;
+        InputStream is ;
         is = new FileInputStream(fileName);
         prop.load(is);
         maxPageSize=Integer.parseInt(prop.getProperty("MaximumRowsCountinPage"));
@@ -45,13 +45,7 @@ public class DBApp implements DBAppInterface
 
         /* close the writer */
         writer.close();
-        Properties prop = new Properties();
-        String fileName = "src/main/resources/DBApp.config";
-        InputStream is = null;
-        is = new FileInputStream(fileName);
-        prop.load(is);
-        maxPageSize=Integer.parseInt(prop.getProperty("MaximumRowsCountinPage"));
-        maxIndexBucket=Integer.parseInt(prop.getProperty("MaximumKeysCountinIndexBucket"));
+
     }
 
 
@@ -115,7 +109,7 @@ public class DBApp implements DBAppInterface
             {
                 currentTable.pageNames.add(tableName+"0");
                 currentTable.pageRanges.add(new Table.pair(clustObj,clustObj));
-                Vector<Hashtable> page = new Vector<Hashtable>();
+                Vector<Hashtable> page = new Vector<>();
                 page.add(colNameValue);
                 FileOutputStream fileOut =
                         new FileOutputStream("src/main/resources/"+tableName+"0.ser");
@@ -219,7 +213,7 @@ public class DBApp implements DBAppInterface
             pageName = currentTable.name + currentTable.pageSizes.size();
         }
         currentTable.pageNames.add(i+1,pageName); // shouldnt we have called it pageName + i ?
-        Vector<Hashtable> newPage = new Vector<Hashtable>();
+        Vector<Hashtable> newPage = new Vector<>();
         for(int j = maxPageSize/2;j<=maxPageSize;j++)
         {
             Hashtable entry = currentPage.get(j);
@@ -372,7 +366,7 @@ public class DBApp implements DBAppInterface
                     {
                         if(colType.equals("java.util.Date"))
                         {
-                            SimpleDateFormat formatter=new SimpleDateFormat("YYYY-MM-DD");
+                            SimpleDateFormat formatter=new SimpleDateFormat("yyyy-MM-dd");
                             Date val = formatter.parse((String)valobj);
                             Date min = formatter.parse(minSt), max =formatter.parse(maxSt);
                             if(val.compareTo(min)<0 || val.compareTo(max)>0)
