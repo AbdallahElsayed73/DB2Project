@@ -13,22 +13,28 @@ public class DBApp implements DBAppInterface {
     int maxPageSize;
     int maxIndexBucket;
 
-    public DBApp() throws IOException, ClassNotFoundException {
-        try {
-            tables = readTables();
+    public DBApp(){
+        try{
+            try {
+                tables = readTables();
 
-        } catch (FileNotFoundException e) {
-            tables = new Vector<>();
-            writeTables();
+            } catch (FileNotFoundException e) {
+                tables = new Vector<>();
+                writeTables();
+            }
+            Properties prop = new Properties();
+            String propFileName = "config.properties";
+            String fileName = "src/main/resources/DBApp.config";
+            InputStream is;
+            is = new FileInputStream(fileName);
+            prop.load(is);
+            maxPageSize = Integer.parseInt(prop.getProperty("MaximumRowsCountinPage"));
+            maxIndexBucket = Integer.parseInt(prop.getProperty("MaximumKeysCountinIndexBucket"));
+
+        }catch (Exception e)
+        {
+            System.out.println(e.getStackTrace());;
         }
-        Properties prop = new Properties();
-        String propFileName = "config.properties";
-        String fileName = "src/main/resources/DBApp.config";
-        InputStream is;
-        is = new FileInputStream(fileName);
-        prop.load(is);
-        maxPageSize = Integer.parseInt(prop.getProperty("MaximumRowsCountinPage"));
-        maxIndexBucket = Integer.parseInt(prop.getProperty("MaximumKeysCountinIndexBucket"));
 
     }
 
@@ -40,7 +46,7 @@ public class DBApp implements DBAppInterface {
 
 
     @Override
-    public void createTable(String tableName, String clusteringKey, Hashtable<String, String> colNameType, Hashtable<String, Object> colNameMin, Hashtable<String, Object> colNameMax) throws DBAppException, IOException, ClassNotFoundException {
+    public void createTable(String tableName, String clusteringKey, Hashtable<String, String> colNameType, Hashtable<String, String> colNameMin, Hashtable<String, String> colNameMax) throws DBAppException, IOException, ClassNotFoundException {
 
 
         tables = readTables();

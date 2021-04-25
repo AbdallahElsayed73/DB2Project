@@ -1,16 +1,12 @@
 import org.junit.jupiter.api.*;
 
-import java.awt.Polygon;
 import java.io.*;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Hashtable;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 
@@ -120,7 +116,7 @@ public class Milestone1Tests {
 
 
     @Test
-    public void testExtraStudentsInsertion() throws IOException, ClassNotFoundException {
+    public void testExtraStudentsInsertion() {
         final DBApp dbApp = new DBApp();
         dbApp.init();
 
@@ -146,7 +142,7 @@ public class Milestone1Tests {
     }
 
     @Test
-    public void testExtraCoursesInsertion() throws IOException, ClassNotFoundException {
+    public void testExtraCoursesInsertion() {
         final DBApp dbApp = new DBApp();
         dbApp.init();
 
@@ -169,7 +165,7 @@ public class Milestone1Tests {
     }
 
     @Test
-    public void testExtraTranscriptsInsertion() throws IOException, ClassNotFoundException {
+    public void testExtraTranscriptsInsertion() {
         final DBApp dbApp = new DBApp();
         dbApp.init();
 
@@ -193,7 +189,7 @@ public class Milestone1Tests {
 
 
     @Test
-    public void testExtraPCsInsertion() throws IOException, ClassNotFoundException {
+    public void testExtraPCsInsertion() {
         final DBApp dbApp = new DBApp();
         dbApp.init();
 
@@ -274,7 +270,7 @@ public class Milestone1Tests {
     }
 
     @Test
-    public void testUpdateStudentsExtra() throws IOException, ClassNotFoundException {
+    public void testUpdateStudentsExtra() {
         final DBApp dbApp = new DBApp();
         dbApp.init();
 
@@ -295,7 +291,7 @@ public class Milestone1Tests {
     }
 
     @Test
-    public void testUpdateCoursesExtra() throws IOException, ClassNotFoundException {
+    public void testUpdateCoursesExtra() {
         final DBApp dbApp = new DBApp();
         dbApp.init();
 
@@ -314,7 +310,7 @@ public class Milestone1Tests {
     }
 
     @Test
-    public void testUpdateTranscriptsExtra() throws IOException, ClassNotFoundException {
+    public void testUpdateTranscriptsExtra() {
         final DBApp dbApp = new DBApp();
         dbApp.init();
 
@@ -336,7 +332,7 @@ public class Milestone1Tests {
     }
 
     @Test
-    public void testUpdatePCsExtra() throws IOException, ClassNotFoundException {
+    public void testUpdatePCsExtra() {
         final DBApp dbApp = new DBApp();
         dbApp.init();
 
@@ -556,14 +552,14 @@ public class Milestone1Tests {
         htblColNameType.put("dob", "java.util.Date");
         htblColNameType.put("gpa", "java.lang.Double");
 
-        Hashtable<String, Object> minValues = new Hashtable<>();
+        Hashtable<String, String> minValues = new Hashtable<>();
         minValues.put("id", "43-0000");
         minValues.put("first_name", "AAAAAA");
         minValues.put("last_name", "AAAAAA");
         minValues.put("dob", "1990-01-01");
         minValues.put("gpa", "0.7");
 
-        Hashtable<String, Object> maxValues = new Hashtable<>();
+        Hashtable<String, String> maxValues = new Hashtable<>();
         maxValues.put("id", "99-9999");
         maxValues.put("first_name", "zzzzzz");
         maxValues.put("last_name", "zzzzzz");
@@ -585,13 +581,13 @@ public class Milestone1Tests {
         htblColNameType.put("hours", "java.lang.Integer");
 
 
-        Hashtable<String, Object> minValues = new Hashtable<>();
+        Hashtable<String, String> minValues = new Hashtable<>();
         minValues.put("date_added", "1990-01-01");
         minValues.put("course_id", "100");
         minValues.put("course_name", "AAAAAA");
         minValues.put("hours", "1");
 
-        Hashtable<String, Object> maxValues = new Hashtable<>();
+        Hashtable<String, String> maxValues = new Hashtable<>();
         maxValues.put("date_added", "2000-12-31");
         maxValues.put("course_id", "2000");
         maxValues.put("course_name", "zzzzzz");
@@ -611,13 +607,13 @@ public class Milestone1Tests {
         htblColNameType.put("course_name", "java.lang.String");
         htblColNameType.put("date_passed", "java.util.Date");
 
-        Hashtable<String, Object> minValues = new Hashtable<>();
+        Hashtable<String, String> minValues = new Hashtable<>();
         minValues.put("gpa", "0.7");
         minValues.put("student_id", "43-0000");
         minValues.put("course_name", "AAAAAA");
         minValues.put("date_passed", "1990-01-01");
 
-        Hashtable<String, Object> maxValues = new Hashtable<>();
+        Hashtable<String, String> maxValues = new Hashtable<>();
         maxValues.put("gpa", "5.0");
         maxValues.put("student_id", "99-9999");
         maxValues.put("course_name", "zzzzzz");
@@ -636,11 +632,11 @@ public class Milestone1Tests {
         htblColNameType.put("student_id", "java.lang.String");
 
 
-        Hashtable<String, Object> minValues = new Hashtable<>();
+        Hashtable<String, String> minValues = new Hashtable<>();
         minValues.put("pc_id", "0");
         minValues.put("student_id", "43-0000");
 
-        Hashtable<String, Object> maxValues = new Hashtable<>();
+        Hashtable<String, String> maxValues = new Hashtable<>();
         maxValues.put("pc_id", "20000");
         maxValues.put("student_id", "99-9999");
 

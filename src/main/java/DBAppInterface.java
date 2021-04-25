@@ -7,7 +7,7 @@ public interface DBAppInterface {
 
     void init() throws IOException;
 
-    void createTable(String tableName, String clusteringKey, Hashtable<String,String> colNameType, Hashtable<String, Object> colNameMin, Hashtable<String, Object> colNameMax) throws DBAppException, IOException, ClassNotFoundException;
+    void createTable(String tableName, String clusteringKey, Hashtable<String,String> colNameType, Hashtable<String, String> colNameMin, Hashtable<String, String> colNameMax) throws DBAppException, IOException, ClassNotFoundException;
 
     void createIndex(String tableName, String[] columnNames) throws DBAppException;
 
