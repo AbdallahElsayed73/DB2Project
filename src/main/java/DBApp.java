@@ -262,7 +262,7 @@ public class DBApp implements DBAppInterface
         if(compareMin <0  || compareMax>0)return;
         Vector<Hashtable> currentPage = readPage(currentTable, pageNumber);
         int ind = binarySearchPage(currentPage.size()-1,0,clusteringKeyValue,currentPage,currentTable);
-        if(currentPage.get(i).get(clusteringColumn).equals(clusteringKeyValue)) {
+        if(currentPage.get(ind).get(clusteringColumn).equals(clusteringKeyValue)) {
             currentPage.set(ind, columnNameValue); // comment: subset of the whole record
             updatePageInfo(currentTable, currentPage, pageNumber);
         }else{
