@@ -21,9 +21,9 @@ public class DBApp implements DBAppInterface {
             } catch (FileNotFoundException e) {
                 tables = new Vector<>();
                 writeTables();
+                init();
             }
             Properties prop = new Properties();
-            String propFileName = "config.properties";
             String fileName = "src/main/resources/DBApp.config";
             InputStream is;
             is = new FileInputStream(fileName);
@@ -33,14 +33,29 @@ public class DBApp implements DBAppInterface {
 
         }catch (Exception e)
         {
-            System.out.println(e.getStackTrace());;
+            e.printStackTrace();
         }
 
     }
 
     @Override
     public void init(){
+        try {
+            String csv = "src/main/resources/metadata.csv";
+            CSVReader reader = new CSVReader(new FileReader(csv), ',', '"', 1);
+            if(reader.readNext()==null)
+            {
+                CSVWriter writer = new CSVWriter(new FileWriter(csv));
+                String[] record = {"Table Name", "Column Name", "Column Type", "ClusteringKey", "Indexed", "min", "max"};
+                writer.writeNext(record);
+                writer.close();
+            }
 
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
 
     }
 
@@ -89,7 +104,7 @@ public class DBApp implements DBAppInterface {
 
     @Override
     public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
-        validate(tableName, colNameValue);
+        validate(tableName, colNameValue, true);
         Table currentTable = findTable(tableName);
 
         Object clustObj = colNameValue.get(currentTable.clusteringColumn);
@@ -220,7 +235,7 @@ public class DBApp implements DBAppInterface {
 
     @Override
     public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ParseException, ClassNotFoundException {
-        validate(tableName, columnNameValue);
+        validate(tableName, columnNameValue, false);
         Table currentTable = findTable(tableName);
         int pageNumber = binarySearchTable(clusteringKeyValue, currentTable);
         Object min = currentTable.pageRanges.get(pageNumber).min;
@@ -249,7 +264,7 @@ public class DBApp implements DBAppInterface {
 
     @Override
     public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
-        validate(tableName, columnNameValue);
+        validate(tableName, columnNameValue, false);
         Table currentTable = findTable(tableName);
         String clusteringColumn = currentTable.clusteringColumn;
         if (columnNameValue.contains(clusteringColumn)) {
@@ -378,15 +393,14 @@ public class DBApp implements DBAppInterface {
         writeTables();
     }
 
-    public void validate(String tableName, Hashtable<String, Object> colNameValue) throws IOException, DBAppException, ParseException {
+    public void validate(String tableName, Hashtable<String, Object> colNameValue, boolean insert) throws IOException, DBAppException, ParseException {
         boolean found = false;
         CSVReader reader = new CSVReader(new FileReader("src/main/resources/metadata.csv"), ',', '"', 1);
-
+        Hashtable<String, Object> cloned = (Hashtable<String, Object>) colNameValue.clone();
         //Read CSV line by line and use the string array as you want
         String[] record;
         while ((record = reader.readNext()) != null) {
             if (record != null) {
-
                 if (record[0].equals(tableName)) {
                     found = true;
                     String colName = record[1];
@@ -395,7 +409,14 @@ public class DBApp implements DBAppInterface {
                     String minSt = record[5], maxSt = record[6];
                     Object valobj = colNameValue.get(colName);
                     if (valobj == null)
-                        throw new DBAppException("A column entry is missing");
+                    {
+                        if(insert)
+                            throw new DBAppException("A column entry is missing");
+                        else
+
+                            continue;
+                    }
+                    cloned.remove(colName);
                     if (valobj instanceof Integer) {
                         if (colType.equals("java.lang.Integer")) {
                             int val = (Integer) valobj;
@@ -430,9 +451,12 @@ public class DBApp implements DBAppInterface {
                         } else
                             throw new DBAppException("not compatible data type at " + colName);
                     }
+
                 }
+
             }
         }
+        if(!cloned.isEmpty()) throw new DBAppException("Invalid input column");
         if (!found)
             throw new DBAppException("table not found");
     }
