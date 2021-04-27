@@ -296,17 +296,16 @@ public class DBApp implements DBAppInterface {
             for (int i = 0; i < currentTable.pageNames.size(); i++) {
                 boolean updatePage = false;
                 Vector<Hashtable> currentPage = readPage(currentTable, i);
-                loop:
-                for (Hashtable<String, Object> record : currentPage) {
+                loop: for (int j = 0;  j < currentPage.size() ; j++) {
                     Iterator<String> it = columnNameValue.keySet().iterator();
                     while (it.hasNext()) {
                         String key = it.next();
                         Object inputVal = columnNameValue.get(key);
-                        Object recordVal = currentPage.get(i).get(key);
+                        Object recordVal = currentPage.get(j).get(key);
                         if (compare(inputVal, recordVal) != 0)
                             continue loop;
                     }
-                    currentPage.remove(record);
+                    currentPage.remove(j--);
                     updatePage = true;
                     found = true;
                 }
@@ -446,7 +445,7 @@ public class DBApp implements DBAppInterface {
                     } else if (valobj instanceof String) {
                         if (colType.equals("java.lang.String")) {
                             String val = (String) valobj;
-                            if (compare(val,minSt) < 0 || compare(val,maxSt) > 0)
+                            if (compare(val, minSt) < 0 || compare(val, maxSt) > 0)
                                 throw new DBAppException(colName + " value out of bound");
                         } else
                             throw new DBAppException("not compatible data type at " + colName);
@@ -531,12 +530,7 @@ public class DBApp implements DBAppInterface {
 //        coursesTable.close();
 
 
-        FileInputStream fileIn = new FileInputStream("src/main/resources/data/courses0.ser");
-        ObjectInputStream in = new ObjectInputStream(fileIn);
-        Vector<Hashtable> currentPage = (Vector<Hashtable>) in.readObject();
-        in.close();
-        fileIn.close();
-        System.out.println(currentPage.get(189));
-
     }
+
+
 }
