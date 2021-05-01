@@ -13,12 +13,16 @@ public class DBApp implements DBAppInterface {
     int maxPageSize;
     int maxIndexBucket;
 
-    public DBApp() {
+    public DBApp(){
         try {
-            tables = readTables();
+            try {
+                tables = readTables();
+            }
+            catch (Exception e) {
+                tables = new Vector<>();
+                writeTables();
+            }
 
-            tables = new Vector<>();
-            writeTables();
             init();
             Properties prop = new Properties();
             String fileName = "src/main/resources/DBApp.config";
@@ -32,6 +36,7 @@ public class DBApp implements DBAppInterface {
             e.printStackTrace();
         }
 
+
     }
 
     @Override
@@ -44,6 +49,12 @@ public class DBApp implements DBAppInterface {
                 String[] record = {"Table Name", "Column Name", "Column Type", "ClusteringKey", "Indexed", "min", "max"};
                 writer.writeNext(record);
                 writer.close();
+            }
+            String dataDirPath = "src/main/resources/data";
+            File dataDir = new File(dataDirPath);
+
+            if (!dataDir.exists()) {
+                dataDir.mkdir();
             }
 
         } catch (Exception e) {
@@ -122,7 +133,13 @@ public class DBApp implements DBAppInterface {
 
             int ind = binarySearchPage(clustObj, currentPage, currentTable);
             if (ind == -1) currentPage.add(colNameValue);
-            else currentPage.add(ind, colNameValue);
+            else
+            {
+                if(compare(currentPage.get(ind).get(currentTable.clusteringColumn) , clustObj) == 0)
+                    throw new DBAppException("the clustering value already exists");
+                currentPage.add(ind, colNameValue);
+
+            }
 
             updatePageInfo(currentTable, currentPage, pageIndex);
 
