@@ -13,7 +13,7 @@ public interface DBAppInterface {
 
     void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException;
 
-    void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ParseException, ClassNotFoundException;
+    void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws Exception;
 
     void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException;
 

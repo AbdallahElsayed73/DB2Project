@@ -21,9 +21,9 @@ public class DBApp implements DBAppInterface {
             } catch (FileNotFoundException e) {
                 tables = new Vector<>();
                 writeTables();
+                init();
             }
             Properties prop = new Properties();
-            String propFileName = "config.properties";
             String fileName = "src/main/resources/DBApp.config";
             InputStream is;
             is = new FileInputStream(fileName);
@@ -33,14 +33,29 @@ public class DBApp implements DBAppInterface {
 
         }catch (Exception e)
         {
-            System.out.println(e.getStackTrace());;
+            e.printStackTrace();
         }
 
     }
 
     @Override
     public void init(){
+        try {
+            String csv = "src/main/resources/metadata.csv";
+            CSVReader reader = new CSVReader(new FileReader(csv), ',', '"', 1);
+            if(reader.readNext()==null)
+            {
+                CSVWriter writer = new CSVWriter(new FileWriter(csv));
+                String[] record = {"Table Name", "Column Name", "Column Type", "ClusteringKey", "Indexed", "min", "max"};
+                writer.writeNext(record);
+                writer.close();
+            }
 
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
 
     }
 
@@ -89,7 +104,7 @@ public class DBApp implements DBAppInterface {
 
     @Override
     public void insertIntoTable(String tableName, Hashtable<String, Object> colNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
-        validate(tableName, colNameValue);
+        validate(tableName, colNameValue, true);
         Table currentTable = findTable(tableName);
 
         Object clustObj = colNameValue.get(currentTable.clusteringColumn);
@@ -152,6 +167,8 @@ public class DBApp implements DBAppInterface {
             int mid = (lo + hi) >> 1;
             Object V = currentPage.get(mid).get(currentTable.clusteringColumn);
             int ans = compare(V, clusterValue);
+//            if(ans==0)
+//                throw new DBAppException("The given value already exists");
             if (ans >= 0) {
                 ind = mid;
                 hi = mid - 1;
@@ -159,6 +176,26 @@ public class DBApp implements DBAppInterface {
                 lo = mid + 1;
         }
         return ind;
+    }
+    public Object getColAsObj(Table t,String s) throws Exception {
+        CSVReader reader = new CSVReader(new FileReader("src/main/resources/metadata.csv"), ',', '"', 1);
+        String[] record;
+        while ((record = reader.readNext()) != null) {
+            if (record[0].equals(t.name) && record[3].equals("true")) {
+                if(record[2].contains("Integer"))
+                    return Integer.parseInt(s);
+                else if(record[2].contains("Double"))
+                    return  Double.parseDouble(s);
+                else if(record[2].contains("String"))
+                    return s;
+                else
+                {
+                    SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
+                    return (Date)formatter.parse(s);
+                }
+            }
+        }
+        return null;
     }
 
     public int compare(Object a, Object b) {
@@ -168,10 +205,10 @@ public class DBApp implements DBAppInterface {
         } else if (a instanceof Double) {
             ans = ((Double) a).compareTo((Double) b);
         } else if (a instanceof String) {
-            if(((String) a).length() == ((String)b).length())
+            //if(((String) a).length() == ((String)b).length())
                 ans = ((String) a).compareTo((String) b);
-            else
-                ans = ((String) a).length() > ((String)b).length()? 1:-1;
+          //  else
+            //    ans = ((String) a).length() > ((String)b).length()? 1:-1;
 
         }
         else {
@@ -219,20 +256,22 @@ public class DBApp implements DBAppInterface {
     }
 
     @Override
-    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ParseException, ClassNotFoundException {
-        validate(tableName, columnNameValue);
+    public void updateTable(String tableName, String clusteringKeyValue, Hashtable<String, Object> columnNameValue) throws Exception {
+        validate(tableName, columnNameValue, false);
         Table currentTable = findTable(tableName);
-        int pageNumber = binarySearchTable(clusteringKeyValue, currentTable);
+        Object clust= getColAsObj(currentTable,clusteringKeyValue);
+
+        int pageNumber = binarySearchTable(clust, currentTable);
         Object min = currentTable.pageRanges.get(pageNumber).min;
         Object max = currentTable.pageRanges.get(pageNumber).max;
-        int compareMin = compare(clusteringKeyValue, min);
-        int compareMax = compare(clusteringKeyValue, max);
+        int compareMin = compare(clust, min);
+        int compareMax = compare(clust, max);
         String clusteringColumn = currentTable.clusteringColumn;
         if (compareMin < 0 || compareMax > 0)
             throw new DBAppException("A record with given clustering key value is not found");
         Vector<Hashtable> currentPage = readPage(currentTable, pageNumber);
-        int ind = binarySearchPage(clusteringKeyValue, currentPage, currentTable);
-        if (compare(currentPage.get(ind).get(clusteringColumn), (clusteringKeyValue)) == 0) {
+        int ind = binarySearchPage(clust, currentPage, currentTable);
+        if (compare(currentPage.get(ind).get(clusteringColumn), (clust)) == 0) {
             Iterator<String> it = columnNameValue.keySet().iterator();
             while (it.hasNext()) {
                 String key = it.next();
@@ -249,7 +288,7 @@ public class DBApp implements DBAppInterface {
 
     @Override
     public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException, IOException, ClassNotFoundException, ParseException {
-        validate(tableName, columnNameValue);
+        validate(tableName, columnNameValue, false);
         Table currentTable = findTable(tableName);
         String clusteringColumn = currentTable.clusteringColumn;
         if (columnNameValue.contains(clusteringColumn)) {
@@ -258,11 +297,17 @@ public class DBApp implements DBAppInterface {
             int compareMin = compare(currentTable.pageRanges.get(pageNumber).min, clusteringValue);
             int compareMax = compare(currentTable.pageRanges.get(pageNumber).max, clusteringValue);
             if (compareMin > 0 || compareMax < 0)
+            {
+                System.out.println("first");
                 throw new DBAppException("A record with the given values is not found");
+            }
             Vector<Hashtable> currentPage = readPage(currentTable, pageNumber);
             int ind = binarySearchPage(clusteringValue, currentPage, currentTable);
             if (compare(currentPage.get(ind).get(clusteringColumn), clusteringValue) != 0)
+            {
+                System.out.println("second");
                 throw new DBAppException("A record with the given values is not found");
+            }
 
 
             Iterator<String> it = columnNameValue.keySet().iterator();
@@ -271,7 +316,10 @@ public class DBApp implements DBAppInterface {
                 Object inputVal = columnNameValue.get(key);
                 Object recordVal = currentPage.get(ind).get(key);
                 if (compare(inputVal, recordVal) != 0)
+                {
+                    System.out.println("third");
                     throw new DBAppException("A record with the given values is not found");
+                }
 
             }
             currentPage.remove(ind);
@@ -282,22 +330,25 @@ public class DBApp implements DBAppInterface {
                 boolean updatePage = false;
                 Vector<Hashtable> currentPage = readPage(currentTable, i);
                 loop:
-                for (Hashtable<String, Object> record : currentPage) {
+                for (int j=0;j<currentPage.size();j++) {
+                    Hashtable<String, Object> record = currentPage.get(j);
                     Iterator<String> it = columnNameValue.keySet().iterator();
                     while (it.hasNext()) {
                         String key = it.next();
                         Object inputVal = columnNameValue.get(key);
-                        Object recordVal = currentPage.get(i).get(key);
+                        Object recordVal = record.get(key);
                         if (compare(inputVal, recordVal) != 0)
                             continue loop;
                     }
                     currentPage.remove(record);
                     updatePage = true;
                     found = true;
+                    j--;
                 }
                 if (updatePage) updatePageInfo(currentTable, currentPage, i);
             }
-            if (!found) throw new DBAppException("A record with the given values is not found");
+            if (!found)
+                throw new DBAppException("A record with the given values is not found");
         }
     }
 
@@ -378,15 +429,14 @@ public class DBApp implements DBAppInterface {
         writeTables();
     }
 
-    public void validate(String tableName, Hashtable<String, Object> colNameValue) throws IOException, DBAppException, ParseException {
+    public void validate(String tableName, Hashtable<String, Object> colNameValue, boolean insert) throws IOException, DBAppException, ParseException {
         boolean found = false;
         CSVReader reader = new CSVReader(new FileReader("src/main/resources/metadata.csv"), ',', '"', 1);
-
+        Hashtable<String, Object> cloned = (Hashtable<String, Object>) colNameValue.clone();
         //Read CSV line by line and use the string array as you want
         String[] record;
         while ((record = reader.readNext()) != null) {
             if (record != null) {
-
                 if (record[0].equals(tableName)) {
                     found = true;
                     String colName = record[1];
@@ -395,7 +445,14 @@ public class DBApp implements DBAppInterface {
                     String minSt = record[5], maxSt = record[6];
                     Object valobj = colNameValue.get(colName);
                     if (valobj == null)
-                        throw new DBAppException("A column entry is missing");
+                    {
+                        if(insert)
+                            throw new DBAppException("A column entry is missing");
+                        else
+
+                            continue;
+                    }
+                    cloned.remove(colName);
                     if (valobj instanceof Integer) {
                         if (colType.equals("java.lang.Integer")) {
                             int val = (Integer) valobj;
@@ -430,9 +487,12 @@ public class DBApp implements DBAppInterface {
                         } else
                             throw new DBAppException("not compatible data type at " + colName);
                     }
+
                 }
+
             }
         }
+        if(!cloned.isEmpty()) throw new DBAppException("Invalid input column");
         if (!found)
             throw new DBAppException("table not found");
     }
@@ -448,7 +508,7 @@ public class DBApp implements DBAppInterface {
 
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
-//        DBApp dbApp = new DBApp();
+        DBApp dbApp = new DBApp();
 //
 //
 //        String tableName = "courses";
@@ -507,12 +567,12 @@ public class DBApp implements DBAppInterface {
 //        coursesTable.close();
 
 
-        FileInputStream fileIn = new FileInputStream("src/main/resources/data/courses0.ser");
-        ObjectInputStream in = new ObjectInputStream(fileIn);
-        Vector<Hashtable> currentPage = (Vector<Hashtable>) in.readObject();
-        in.close();
-        fileIn.close();
-        System.out.println(currentPage.get(189));
+//        FileInputStream fileIn = new FileInputStream("src/main/resources/data/courses0.ser");
+//        ObjectInputStream in = new ObjectInputStream(fileIn);
+//        Vector<Hashtable> currentPage = (Vector<Hashtable>) in.readObject();
+//        in.close();
+//        fileIn.close();
+//        System.out.println(currentPage.get(189));
 
     }
 }
