@@ -293,8 +293,8 @@ public class DBApp implements DBAppInterface {
             for (int i = 0; i < currentTable.pageNames.size(); i++) {
                 boolean updatePage = false;
                 Vector<Hashtable> currentPage = readPage(currentTable, i);
-                loop:
-                for (int j = 0; j < currentPage.size(); j++) {
+
+                loop: for (int j = 0;  j < currentPage.size() ; j++) {
                     Iterator<String> it = columnNameValue.keySet().iterator();
                     while (it.hasNext()) {
                         String key = it.next();
@@ -554,12 +554,7 @@ public class DBApp implements DBAppInterface {
 //        coursesTable.close();
 
 
-        FileInputStream fileIn = new FileInputStream("src/main/resources/data/courses0.ser");
-        ObjectInputStream in = new ObjectInputStream(fileIn);
-        Vector<Hashtable> currentPage = (Vector<Hashtable>) in.readObject();
-        in.close();
-        fileIn.close();
-        System.out.println(currentPage.get(189));
-
     }
+
+
 }
