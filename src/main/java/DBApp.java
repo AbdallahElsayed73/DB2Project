@@ -451,7 +451,7 @@ public class DBApp implements DBAppInterface {
         currentTable.pageRanges.add(i, new Table.pair(min, max));
         currentTable.pageNames.add(i, name);
         writePage(name, currentPage);
-        writeTables();
+        writeTable(currentTable);
     }
 
     public void validate(String tableName, Hashtable<String, Object> colNameValue, boolean insert) throws  DBAppException {
@@ -570,6 +570,14 @@ public class DBApp implements DBAppInterface {
 
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
+
+        FileInputStream fileIn = new FileInputStream("src/main/resources/data/students_table.ser");
+        ObjectInputStream in = new ObjectInputStream(fileIn);
+        Table currentTable = (Table) in.readObject();
+        in.close();
+        fileIn.close();
+        System.out.println(currentTable.pageNames);
+
 //        DBApp dbApp = new DBApp();
 //
 //
