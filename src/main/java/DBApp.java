@@ -9,16 +9,20 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class DBApp implements DBAppInterface {
-    Vector<Table> tables;
+    Vector<String> tables;
     int maxPageSize;
     int maxIndexBucket;
 
-    public DBApp() {
+    public DBApp(){
         try {
-            tables = readTables();
+            try {
+                tables = readTables();
+            }
+            catch (Exception e) {
+                tables = new Vector<>();
+                writeTables();
+            }
 
-            tables = new Vector<>();
-            writeTables();
             init();
             Properties prop = new Properties();
             String fileName = "src/main/resources/DBApp.config";
@@ -31,6 +35,7 @@ public class DBApp implements DBAppInterface {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
 
     }
 
@@ -45,6 +50,12 @@ public class DBApp implements DBAppInterface {
                 writer.writeNext(record);
                 writer.close();
             }
+            String dataDirPath = "src/main/resources/data";
+            File dataDir = new File(dataDirPath);
+
+            if (!dataDir.exists()) {
+                dataDir.mkdir();
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -58,10 +69,9 @@ public class DBApp implements DBAppInterface {
 
         try {
             tables = readTables();
-            for (Table t : tables)
-                if (t.name.equals(tableName)) {
-                    throw new DBAppException("table is already created");
-                }
+            if(tables.contains(tableName))
+                throw new DBAppException("table is already created");
+
 
             String clusterColumn = "";
             String csv = "src/main/resources/metadata.csv";
@@ -86,7 +96,9 @@ public class DBApp implements DBAppInterface {
 
             }
             writer.close();
-            tables.add(new Table(tableName, clusterColumn));
+            tables.add(tableName);
+            Table table=new Table(tableName, clusterColumn);
+            writeTable(table);
             writeTables();
         } catch (Exception e) {
             throw new DBAppException(e.getMessage());
@@ -122,7 +134,13 @@ public class DBApp implements DBAppInterface {
 
             int ind = binarySearchPage(clustObj, currentPage, currentTable);
             if (ind == -1) currentPage.add(colNameValue);
-            else currentPage.add(ind, colNameValue);
+            else
+            {
+                if(compare(currentPage.get(ind).get(currentTable.clusteringColumn) , clustObj) == 0)
+                    throw new DBAppException("the clustering value already exists");
+                currentPage.add(ind, colNameValue);
+
+            }
 
             updatePageInfo(currentTable, currentPage, pageIndex);
 
@@ -350,25 +368,24 @@ public class DBApp implements DBAppInterface {
 
 
     public Table findTable(String tableName) throws DBAppException {
-        Vector<Table> tables = readTables();
+        Vector<String> tables = readTables();
         Table currentTable = null;
-        for (Table t : tables) {
-            if (t.name.equals(tableName)) {
-                currentTable = t;
-                break;
-            }
+
+        if(tables.contains(tableName))
+        {
+            currentTable=readTable(tableName);
         }
         return currentTable;
     }
 
 
-    public Vector<Table> readTables() throws DBAppException {
+    public Vector<String> readTables() throws DBAppException {
         if (tables != null) return tables;
         FileInputStream fileIn = null;
         try {
             fileIn = new FileInputStream("src/main/resources/tables.ser");
             ObjectInputStream in = new ObjectInputStream(fileIn);
-            tables = (Vector<Table>) in.readObject();
+            tables = (Vector<String>) in.readObject();
             in.close();
             fileIn.close();
             return tables;
@@ -424,7 +441,7 @@ public class DBApp implements DBAppInterface {
         currentTable.pageSizes.set(i, currentPage.size());
         currentTable.pageRanges.set(i, new Table.pair(min, max));
         writePage(name, currentPage);
-        writeTables();
+        writeTable(currentTable);
     }
 
     public void addNewPage(Table currentTable, String name, Vector<Hashtable> currentPage, int i) throws DBAppException {
@@ -522,6 +539,34 @@ public class DBApp implements DBAppInterface {
             throw new DBAppException(e.getMessage());
         }
     }
+    public void writeTable(Table table) throws DBAppException {
+        try {
+            FileOutputStream fileOut =
+                    new FileOutputStream("src/main/resources/data/" + table.name + "_table.ser");
+            ObjectOutputStream out = new ObjectOutputStream(fileOut);
+            out.writeObject(table);
+            out.close();
+            fileOut.close();
+        }catch (Exception e)
+        {
+            throw new DBAppException(e.getMessage());
+        }
+    }
+    public Table readTable(String tableName) throws DBAppException {
+        try {
+            FileInputStream fileIn = new FileInputStream("src/main/resources/data/" + tableName+ "_table.ser");
+            ObjectInputStream in = new ObjectInputStream(fileIn);
+           Table currentTable = (Table) in.readObject();
+            in.close();
+            fileIn.close();
+            return currentTable;
+        }catch (Exception e)
+        {
+            throw new DBAppException(e.getMessage());
+        }
+    }
+
+
 
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
