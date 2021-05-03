@@ -330,7 +330,7 @@ public class DBApp implements DBAppInterface {
                 String key = it.next();
                 Object inputVal = columnNameValue.get(key);
                 Object recordVal = currentPage.get(ind).get(key);
-                if (compare(inputVal, recordVal) != 0)
+                if (recordVal == null || compare(inputVal, recordVal) != 0)
                     throw new DBAppException("A record with the given values is not found");
 
             }
@@ -348,7 +348,7 @@ public class DBApp implements DBAppInterface {
                         String key = it.next();
                         Object inputVal = columnNameValue.get(key);
                         Object recordVal = currentPage.get(j).get(key);
-                        if (compare(inputVal, recordVal) != 0)
+                        if (recordVal == null || compare(inputVal, recordVal) != 0)
                             continue loop;
                     }
                     currentPage.remove(j--);
