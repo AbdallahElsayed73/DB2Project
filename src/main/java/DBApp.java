@@ -478,15 +478,8 @@ public class DBApp implements DBAppInterface {
                         String minSt = record[5], maxSt = record[6];
                         Object valobj = colNameValue.get(colName);
                         if (valobj == null) {
-                            if (insert) {
-                                if (clust)
-                                    throw new DBAppException("The clustering key can not be null");
-                                else
-                                {
-                                    colNameValue.put(colName, null);
-                                    continue;
-                                }
-                            }
+                            if (insert && clust)
+                                throw new DBAppException("The clustering key can not be null");
                             else
                                 continue;
                         }
@@ -582,9 +575,15 @@ public class DBApp implements DBAppInterface {
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
 
-        String x = "0.7";
-        System.out.println(x.getClass().getName());
+    DBApp db = new DBApp();
+    Table t = db.readTable("pcs");
+    Hashtable<String, Object> x = new Hashtable<>();
+//    x.put("pc_id", 5);
+//    db.insertIntoTable("pcs", x);
+    db.writeTable(t);
+
+//    Comparable x = 3;
+//    Comparable y = 2;
+//        System.out.println(x.compareTo(y));
     }
-
-
 }
