@@ -53,7 +53,7 @@ public class DBApp implements DBAppInterface {
             String dataDirPath = "src/main/resources/data";
             File dataDir = new File(dataDirPath);
 
-            if (!dataDir.exists()) {
+            if (!dataDir.isDirectory() || !dataDir.exists()) {
                 dataDir.mkdir();
             }
 
@@ -397,6 +397,12 @@ public class DBApp implements DBAppInterface {
 
     public void writeTables() throws DBAppException {
         try {
+            String dataDirPath = "src/main/resources/data";
+            File dataDir = new File(dataDirPath);
+
+            if (!dataDir.isDirectory() || !dataDir.exists()) {
+                dataDir.mkdir();
+            }
             FileOutputStream fileOut =
                     new FileOutputStream("src/main/resources/data/tables.ser");
             ObjectOutputStream out = new ObjectOutputStream(fileOut);
