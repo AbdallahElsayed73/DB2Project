@@ -53,7 +53,7 @@ public class DBApp implements DBAppInterface {
             String dataDirPath = "src/main/resources/data";
             File dataDir = new File(dataDirPath);
 
-            if (!dataDir.exists()) {
+            if (!dataDir.isDirectory() || !dataDir.exists()) {
                 dataDir.mkdir();
             }
 
@@ -330,7 +330,7 @@ public class DBApp implements DBAppInterface {
                 String key = it.next();
                 Object inputVal = columnNameValue.get(key);
                 Object recordVal = currentPage.get(ind).get(key);
-                if (compare(inputVal, recordVal) != 0)
+                if (recordVal == null || compare(inputVal, recordVal) != 0)
                     throw new DBAppException("A record with the given values is not found");
 
             }
@@ -348,7 +348,7 @@ public class DBApp implements DBAppInterface {
                         String key = it.next();
                         Object inputVal = columnNameValue.get(key);
                         Object recordVal = currentPage.get(j).get(key);
-                        if (compare(inputVal, recordVal) != 0)
+                        if (recordVal == null || compare(inputVal, recordVal) != 0)
                             continue loop;
                     }
                     currentPage.remove(j--);
@@ -383,7 +383,7 @@ public class DBApp implements DBAppInterface {
         if (tables != null) return tables;
         FileInputStream fileIn = null;
         try {
-            fileIn = new FileInputStream("src/main/resources/tables.ser");
+            fileIn = new FileInputStream("src/main/resources/data/tables.ser");
             ObjectInputStream in = new ObjectInputStream(fileIn);
             tables = (Vector<String>) in.readObject();
             in.close();
@@ -397,8 +397,14 @@ public class DBApp implements DBAppInterface {
 
     public void writeTables() throws DBAppException {
         try {
+            String dataDirPath = "src/main/resources/data";
+            File dataDir = new File(dataDirPath);
+
+            if (!dataDir.isDirectory() || !dataDir.exists()) {
+                dataDir.mkdir();
+            }
             FileOutputStream fileOut =
-                    new FileOutputStream("src/main/resources/tables.ser");
+                    new FileOutputStream("src/main/resources/data/tables.ser");
             ObjectOutputStream out = new ObjectOutputStream(fileOut);
             out.writeObject(tables);
             out.close();
@@ -456,7 +462,9 @@ public class DBApp implements DBAppInterface {
 
     public void validate(String tableName, Hashtable<String, Object> colNameValue, boolean insert) throws  DBAppException {
         try {
-            boolean found = false;
+            Vector<String> tables = readTables();
+            if(!tables.contains(tableName))
+                throw new DBAppException("table not found");
             CSVReader reader = new CSVReader(new FileReader("src/main/resources/metadata.csv"), ',', '"', 1);
             Hashtable<String, Object> cloned = (Hashtable<String, Object>) colNameValue.clone();
             //Read CSV line by line and use the string array as you want
@@ -464,17 +472,15 @@ public class DBApp implements DBAppInterface {
             while ((record = reader.readNext()) != null) {
                 if (record != null) {
                     if (record[0].equals(tableName)) {
-                        found = true;
                         String colName = record[1];
                         String colType = record[2];
                         boolean clust = Boolean.parseBoolean(record[3]);
                         String minSt = record[5], maxSt = record[6];
                         Object valobj = colNameValue.get(colName);
                         if (valobj == null) {
-                            if (insert)
-                                throw new DBAppException("A column entry is missing");
+                            if (insert && clust)
+                                throw new DBAppException("The clustering key can not be null");
                             else
-
                                 continue;
                         }
                         cloned.remove(colName);
@@ -518,8 +524,6 @@ public class DBApp implements DBAppInterface {
                 }
             }
             if (!cloned.isEmpty()) throw new DBAppException("Invalid input column");
-            if (!found)
-                throw new DBAppException("table not found");
         }catch (Exception e)
         {
             throw new DBAppException(e.getMessage());
@@ -571,73 +575,15 @@ public class DBApp implements DBAppInterface {
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
 
-        FileInputStream fileIn = new FileInputStream("src/main/resources/data/students_table.ser");
-        ObjectInputStream in = new ObjectInputStream(fileIn);
-        Table currentTable = (Table) in.readObject();
-        in.close();
-        fileIn.close();
-        System.out.println(currentTable.pageNames);
+    DBApp db = new DBApp();
+    Table t = db.readTable("pcs");
+    Hashtable<String, Object> x = new Hashtable<>();
+//    x.put("pc_id", 5);
+//    db.insertIntoTable("pcs", x);
+    db.writeTable(t);
 
-//        DBApp dbApp = new DBApp();
-//
-//
-//        String tableName = "courses";
-//
-//        Hashtable<String, String> htblColNameType = new Hashtable<String, String>();
-//        htblColNameType.put("date_added", "java.util.Date");
-//        htblColNameType.put("course_id", "java.lang.String");
-//        htblColNameType.put("course_name", "java.lang.String");
-//        htblColNameType.put("hours", "java.lang.Integer");
-//
-//
-//        Hashtable<String, Object> minValues = new Hashtable<>();
-//        minValues.put("date_added", "1990-01-01");
-//        minValues.put("course_id", "100");
-//        minValues.put("course_name", "AAAAAA");
-//        minValues.put("hours", "1");
-//
-//        Hashtable<String, Object> maxValues = new Hashtable<>();
-//        maxValues.put("date_added", "2000-12-31");
-//        maxValues.put("course_id", "2000");
-//        maxValues.put("course_name", "zzzzzz");
-//        maxValues.put("hours", "24");
-//
-//        dbApp.createTable(tableName, "date_added", htblColNameType, minValues, maxValues);
-//
-//
-//        BufferedReader coursesTable = new BufferedReader(new FileReader("src/main/resources/courses_table.csv"));
-//        String record;
-//        Hashtable<String, Object> row = new Hashtable<>();
-//
-//        int i=6;
-//        while ((record = coursesTable.readLine()) != null &&  i-->0) {
-//            String[] fields = record.split(",");
-//
-//
-//
-//            int year = Integer.parseInt(fields[0].trim().substring(0, 4));
-//            int month = Integer.parseInt(fields[0].trim().substring(5, 7));
-//            int day = Integer.parseInt(fields[0].trim().substring(8));
-//
-//            Date dateAdded = new Date(year - 1900, month - 1, day);
-//
-//            row.put("date_added", dateAdded);
-//
-//            row.put("course_id", fields[1]);
-//            row.put("course_name", fields[2]);
-//            row.put("hours", Integer.parseInt(fields[3]));
-//
-//
-//            dbApp.insertIntoTable("courses", row);
-//            System.out.println("------------------------------------------------------");
-//            row.clear();
-//
-//        }
-//
-//        coursesTable.close();
-
-
+//    Comparable x = 3;
+//    Comparable y = 2;
+//        System.out.println(x.compareTo(y));
     }
-
-
 }

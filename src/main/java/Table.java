@@ -28,6 +28,10 @@ public class Table implements Serializable
             this.min = min;
             this.max = max;
         }
+        public String toString()
+        {
+            return min+ " "+ max;
+        }
 
     }
 }
