@@ -288,8 +288,10 @@ public class DBApp implements DBAppInterface {
         int compareMin = compare(clust, min);
         int compareMax = compare(clust, max);
         String clusteringColumn = currentTable.clusteringColumn;
-        if (compareMin < 0 || compareMax > 0)
-            throw new DBAppException("A record with given clustering key value is not found");
+        if (compareMin < 0 || compareMax > 0){
+            System.out.println("0 row(s) affected");
+            return;
+        }
         Vector<Hashtable> currentPage = readPage(currentTable, pageNumber);
         int ind = binarySearchPage(clust, currentPage, currentTable);
         if (compare(currentPage.get(ind).get(clusteringColumn), (clust)) == 0) {
@@ -299,9 +301,10 @@ public class DBApp implements DBAppInterface {
                 Object val = columnNameValue.get(key);
                 currentPage.get(ind).put(key, val);
             }
+            System.out.println("1 row(s) affected");
             updatePageInfo(currentTable, currentPage, pageNumber);
         } else {
-            throw new DBAppException("A record with given clustering key value is not found");
+            System.out.println("0 row(s) affected");
         }
 
     }
@@ -319,13 +322,13 @@ public class DBApp implements DBAppInterface {
             int compareMin = compare(currentTable.pageRanges.get(pageNumber).min, clusteringValue);
             int compareMax = compare(currentTable.pageRanges.get(pageNumber).max, clusteringValue);
             if (compareMin > 0 || compareMax < 0){
-                System.out.println("0 rows affected");
+                System.out.println("0 row(s) affected");
                 return;
             }
             Vector<Hashtable> currentPage = readPage(currentTable, pageNumber);
             int ind = binarySearchPage(clusteringValue, currentPage, currentTable);
             if (compare(currentPage.get(ind).get(clusteringColumn), clusteringValue) != 0) {
-                System.out.println("0 rows affected");
+                System.out.println("0 row(s) affected");
                 return;
             }
             Iterator<String> it = columnNameValue.keySet().iterator();
@@ -334,13 +337,13 @@ public class DBApp implements DBAppInterface {
                 Object inputVal = columnNameValue.get(key);
                 Object recordVal = currentPage.get(ind).get(key);
                 if (recordVal == null || compare(inputVal, recordVal) != 0) {
-                    System.out.println("0 rows affected");
+                    System.out.println("0 row(s) affected");
                     return;
                 }
             }
             currentPage.remove(ind);
             updatePageInfo(currentTable, currentPage, pageNumber);
-            System.out.println("1 row affected");
+            System.out.println("1 row(s) affected");
         } else {
             for (int i = 0; i < currentTable.pageNames.size(); i++) {
                 boolean updatePage = false;
