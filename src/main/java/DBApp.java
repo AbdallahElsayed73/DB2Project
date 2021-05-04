@@ -312,32 +312,36 @@ public class DBApp implements DBAppInterface {
         validate(tableName, columnNameValue, false);
         Table currentTable = findTable(tableName);
         String clusteringColumn = currentTable.clusteringColumn;
+        int c = 0;
         if (columnNameValue.contains(clusteringColumn)) {
             Object clusteringValue = columnNameValue.get(clusteringColumn);
             int pageNumber = binarySearchTable(clusteringValue, currentTable);
             int compareMin = compare(currentTable.pageRanges.get(pageNumber).min, clusteringValue);
             int compareMax = compare(currentTable.pageRanges.get(pageNumber).max, clusteringValue);
-            if (compareMin > 0 || compareMax < 0)
-                throw new DBAppException("A record with the given values is not found");
+            if (compareMin > 0 || compareMax < 0){
+                System.out.println("0 rows affected");
+                return;
+            }
             Vector<Hashtable> currentPage = readPage(currentTable, pageNumber);
             int ind = binarySearchPage(clusteringValue, currentPage, currentTable);
-            if (compare(currentPage.get(ind).get(clusteringColumn), clusteringValue) != 0)
-                throw new DBAppException("A record with the given values is not found");
-
-
+            if (compare(currentPage.get(ind).get(clusteringColumn), clusteringValue) != 0) {
+                System.out.println("0 rows affected");
+                return;
+            }
             Iterator<String> it = columnNameValue.keySet().iterator();
             while (it.hasNext()) {
                 String key = it.next();
                 Object inputVal = columnNameValue.get(key);
                 Object recordVal = currentPage.get(ind).get(key);
-                if (recordVal == null || compare(inputVal, recordVal) != 0)
-                    throw new DBAppException("A record with the given values is not found");
-
+                if (recordVal == null || compare(inputVal, recordVal) != 0) {
+                    System.out.println("0 rows affected");
+                    return;
+                }
             }
             currentPage.remove(ind);
             updatePageInfo(currentTable, currentPage, pageNumber);
+            System.out.println("1 row affected");
         } else {
-            boolean found = false;
             for (int i = 0; i < currentTable.pageNames.size(); i++) {
                 boolean updatePage = false;
                 Vector<Hashtable> currentPage = readPage(currentTable, i);
@@ -351,13 +355,13 @@ public class DBApp implements DBAppInterface {
                         if (recordVal == null || compare(inputVal, recordVal) != 0)
                             continue loop;
                     }
+                    c++;
                     currentPage.remove(j--);
                     updatePage = true;
-                    found = true;
                 }
                 if (updatePage) updatePageInfo(currentTable, currentPage, i);
             }
-            if (!found) throw new DBAppException("A record with the given values is not found");
+            System.out.println(c + " rows affected");
         }
     }
 
