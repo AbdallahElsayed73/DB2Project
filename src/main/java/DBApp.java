@@ -364,7 +364,7 @@ public class DBApp implements DBAppInterface {
                 }
                 if (updatePage) updatePageInfo(currentTable, currentPage, i);
             }
-            System.out.println(c + " rows affected");
+            System.out.println(c + " row(s) affected");
         }
     }
 
