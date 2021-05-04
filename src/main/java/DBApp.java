@@ -315,7 +315,6 @@ public class DBApp implements DBAppInterface {
         validate(tableName, columnNameValue, false);
         Table currentTable = findTable(tableName);
         String clusteringColumn = currentTable.clusteringColumn;
-        int c = 0;
         if (columnNameValue.contains(clusteringColumn)) {
             Object clusteringValue = columnNameValue.get(clusteringColumn);
             int pageNumber = binarySearchTable(clusteringValue, currentTable);
@@ -345,6 +344,7 @@ public class DBApp implements DBAppInterface {
             updatePageInfo(currentTable, currentPage, pageNumber);
             System.out.println("1 row(s) affected");
         } else {
+            int c = 0;
             for (int i = 0; i < currentTable.pageNames.size(); i++) {
                 boolean updatePage = false;
                 Vector<Hashtable> currentPage = readPage(currentTable, i);
