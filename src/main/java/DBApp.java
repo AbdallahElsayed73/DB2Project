@@ -582,15 +582,5 @@ public class DBApp implements DBAppInterface {
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
 
-    DBApp db = new DBApp();
-    Table t = db.readTable("pcs");
-    Hashtable<String, Object> x = new Hashtable<>();
-//    x.put("pc_id", 5);
-//    db.insertIntoTable("pcs", x);
-    db.writeTable(t);
-
-//    Comparable x = 3;
-//    Comparable y = 2;
-//        System.out.println(x.compareTo(y));
     }
 }
