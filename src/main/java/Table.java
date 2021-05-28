@@ -5,33 +5,22 @@ public class Table implements Serializable
 {
     String name;
     String clusteringColumn;
-    Vector<pair> pageRanges;
+    Vector<Pair> pageRanges;
     Vector<String> pageNames;
     Vector<Integer>pageSizes;
     Vector<String> availableNames;
+    Vector<String[]> indices;
     public Table(String name, String clusteringColumn)
     {
         this.name = name;
         this.clusteringColumn = clusteringColumn;
-        pageRanges = new Vector<pair>();
+        pageRanges = new Vector<Pair>();
         pageNames = new Vector<String>();
         pageSizes = new Vector<Integer>();
         availableNames = new Vector<String>();
+        indices = new Vector<String[]>();
     }
 
 
-    static class pair implements Serializable
-    {
-        Object min, max;
-        public pair(Object min, Object max)
-        {
-            this.min = min;
-            this.max = max;
-        }
-        public String toString()
-        {
-            return min+ " "+ max;
-        }
 
-    }
 }

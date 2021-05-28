@@ -122,7 +122,7 @@ public class DBApp implements DBAppInterface {
 
         if (currentTable.pageNames.size() == 0) {
             currentTable.pageNames.add(tableName + "0");
-            currentTable.pageRanges.add(new Table.pair(clustObj, clustObj));
+            currentTable.pageRanges.add(new Pair(clustObj, clustObj));
             currentTable.pageSizes.add(0);
             Vector<Hashtable> page = new Vector<Hashtable>();
             page.add(colNameValue);
@@ -452,7 +452,7 @@ public class DBApp implements DBAppInterface {
         Object min = currentPage.get(0).get(currentTable.clusteringColumn);
         Object max = currentPage.get(currentPage.size() - 1).get(currentTable.clusteringColumn);
         currentTable.pageSizes.set(i, currentPage.size());
-        currentTable.pageRanges.set(i, new Table.pair(min, max));
+        currentTable.pageRanges.set(i, new Pair(min, max));
         writePage(name, currentPage);
         writeTable(currentTable);
     }
@@ -461,7 +461,7 @@ public class DBApp implements DBAppInterface {
         Object min = currentPage.get(0).get(currentTable.clusteringColumn);
         Object max = currentPage.get(currentPage.size() - 1).get(currentTable.clusteringColumn);
         currentTable.pageSizes.add(i, currentPage.size());
-        currentTable.pageRanges.add(i, new Table.pair(min, max));
+        currentTable.pageRanges.add(i, new Pair(min, max));
         currentTable.pageNames.add(i, name);
         writePage(name, currentPage);
         writeTable(currentTable);
@@ -578,9 +578,58 @@ public class DBApp implements DBAppInterface {
     }
 
 
+    public Pair[] splitRange(Object min, Object max)
+    {
+        Pair[] ans = null;
+
+        if(min instanceof Integer)
+        {
+            int minInt = (int) min, maxInt = (int) max;
+            int range = (maxInt-minInt+1);
+            if(range<10)
+            {
+                ans = new Pair[range];
+                for(int i=0;i<=range;i++)
+                    ans[i]= new Pair(i+minInt,i+minInt+1);
+            }
+            else
+            {
+                int inc = (int) Math.ceil(range/10.0);
+                ans = new Pair[10];
+                for(int i=0;i<=9;i++)
+                {
+                    ans[i] = new Pair(minInt+i*inc, Math.min(minInt+(i+1)*inc, maxInt+1));
+                }
+            }
+
+        }
+        else if(min instanceof Double)
+        {
+            double minDl = (double) 2, maxDl= (double) 3;
+            double range = maxDl-minDl;
 
 
-    public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
+            double inc = range/10.0;
+            Pair[] ans = new Pair[10];
+            for(int i=0;i<=9;i++)
+            {
+                ans[i] = new Pair(minDl+i*inc, minDl+(i+1)*inc);
+            }
+            ans[9].max = maxDl+0.001;
+
+
+        }
+
+        return ans;
+    }
+
+
+
+
+    public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException
+    {
+
+
 
     }
 }
