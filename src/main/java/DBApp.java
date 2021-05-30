@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.util.*;
 
 public class DBApp implements DBAppInterface {
@@ -586,36 +587,84 @@ public class DBApp implements DBAppInterface {
         {
             int minInt = (int) min, maxInt = (int) max;
             int range = (maxInt-minInt+1);
-            if(range<10)
-            {
-                ans = new Pair[range];
-                for(int i=0;i<=range;i++)
-                    ans[i]= new Pair(i+minInt,i+minInt+1);
-            }
-            else
-            {
+
                 int inc = (int) Math.ceil(range/10.0);
-                ans = new Pair[10];
-                for(int i=0;i<=9;i++)
+                int size= (int) Math.ceil(range*1.0/inc);
+                ans = new Pair[size];
+                for(int i=0;i<size;i++)
                 {
-                    ans[i] = new Pair(minInt+i*inc, Math.min(minInt+(i+1)*inc, maxInt+1));
+                    ans[i] = new Pair(minInt+i*inc, minInt+(i+1)*inc-1);
                 }
-            }
+
 
         }
         else if(min instanceof Double)
         {
-            double minDl = (double) 2, maxDl= (double) 3;
+            double minDl = (double) min, maxDl= (double) max;
             double range = maxDl-minDl;
-
-
             double inc = range/10.0;
-            Pair[] ans = new Pair[10];
+            ans = new Pair[10];
             for(int i=0;i<=9;i++)
             {
-                ans[i] = new Pair(minDl+i*inc, minDl+(i+1)*inc);
+                ans[i] = new Pair(minDl+i*inc, minDl+(i+1)*inc-1e-6);
             }
-            ans[9].max = maxDl+0.001;
+            ans[9].max = maxDl;
+
+
+        }else if(min instanceof String)
+        {
+
+            int index=-1;
+            String minString=(String) min;
+            String maxString=(String) max;
+            for(int i=0;i<minString.length();i++) {
+                if (minString.charAt(i) != maxString.charAt(i)) {
+                    index = i;
+                    break;
+                }
+            }
+            char begin=' ';
+            char end=' ';
+            if(index==-1)
+            {
+                index=minString.length();
+                begin=0;
+                end=maxString.charAt(minString.length());
+            }else{
+                begin=minString.charAt(index);
+                end=maxString.charAt(index);
+            }
+            int range=(int)(end-begin+1);
+            String tmp=minString.substring(0,index);
+
+                int inc=(int) Math.ceil(range/10.0);
+                int size=(int)Math.ceil(range*1.0/inc);
+                ans = new Pair[size];
+                for(int i=0;i<size;i++)
+                {
+                    ans[i] = new Pair(tmp+(char)(begin+(i*inc)), tmp+(char)(begin+((i+1)*inc-1)));
+                }
+
+
+
+        }else{
+            Date minDate= (Date) min;
+            Date maxDate= (Date) max;
+            LocalDate minLD= LocalDate.of(minDate.getYear()+1900,minDate.getMonth()+1,minDate.getDate());
+            LocalDate maxLD= LocalDate.of(maxDate.getYear()+1900,maxDate.getMonth()+1,maxDate.getDate());
+            long range= maxLD.toEpochDay()-minLD.toEpochDay()+1;
+            long inc=(long) Math.ceil(range/10.0);
+            int size=(int )(Math.ceil(range*1.0/inc));
+            System.out.println(range+" "+inc+" "+size);
+
+            ans=new Pair[size];
+            for(int i=0;i<size;i++)
+            {
+                LocalDate tmpMin=minLD.plusDays(i*inc);
+                LocalDate tmpMax=minLD.plusDays((i+1)*inc-1);
+                ans[i]=new Pair(new Date(tmpMin.getYear()-1900,tmpMin.getMonthValue()-1,tmpMin.getDayOfMonth()),
+                        new Date(tmpMax.getYear()-1900,tmpMax.getMonthValue()-1,tmpMax.getDayOfMonth()));
+            }
 
 
         }
@@ -628,6 +677,8 @@ public class DBApp implements DBAppInterface {
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException
     {
+        DBApp app=new DBApp();
+        Pair[]ans= app.splitRange(new Date(2001-1900,1-1,31),new Date(2005-1900,10-1,15));
 
 
 
