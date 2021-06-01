@@ -4,10 +4,12 @@ public class Grid implements Serializable
 {
     Object[] references;
     Pair[] ranges;
-    public Grid(Object[] references, Pair[] ranges)
+    String colName;
+    public Grid( Pair[] ranges,String colName)
     {
-        this.references = references;
+        this.references =new Object[ranges.length];
         this.ranges = ranges;
+        this.colName=colName;
     }
 
 }

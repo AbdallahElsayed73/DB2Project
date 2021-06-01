@@ -10,6 +10,7 @@ public class Table implements Serializable
     Vector<Integer>pageSizes;
     Vector<String> availableNames;
     Vector<String[]> indices;
+
     public Table(String name, String clusteringColumn)
     {
         this.name = name;

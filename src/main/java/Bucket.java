@@ -1,12 +1,18 @@
+import java.io.Serializable;
 import java.util.Vector;
 
-public class Bucket
+public class Bucket implements Serializable
 {
+    // will change it later
     Vector<Object> clusteringKeyValues;
-    String overflow;
-    public Bucket()
+    int bucketNumber;
+    Vector<String> overflow;
+    Vector<Integer> sizes;
+    public Bucket(int bucketNum)
     {
+        bucketNumber = bucketNum;
         clusteringKeyValues = new Vector<Object>();
-        overflow = null;
+        overflow = new Vector<>();
+        sizes = new Vector<>();
     }
 }
