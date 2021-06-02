@@ -144,10 +144,14 @@ public class DBApp implements DBAppInterface {
 
         for(int i=0;i<currentTable.pageNames.size();i++)
         {
-            Vector<Hashtable> currentPage = readPage(currentTable, i);
+            Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, i);
             for(Hashtable<String, Object> row: currentPage) {
                 int idx = getBucket(columnNames, index, row, 0);
                 buckets[idx].clusteringKeyValues.add(row.get(currentTable.clusteringColumn));
+                Hashtable<String, Object> indexColVals = new Hashtable<>();
+                for(String colName : columnNames)
+                    indexColVals.put(colName, row.get(colName));
+                buckets[idx].IndexColumnValues.add(indexColVals);
             }
 
         }
@@ -218,12 +222,16 @@ public class DBApp implements DBAppInterface {
             for(int j=maxIndexBucket*(i+1); j<maxIndexBucket*(i+2) && j< b.clusteringKeyValues.size();j++)
             {
                 ovf.clusteringKeyValues.add(b.clusteringKeyValues.get(j));
+                ovf.IndexColumnValues.add(b.IndexColumnValues.get(j));
             }
             writeBucket(ovf, name);
             b.sizes.add(ovf.clusteringKeyValues.size());
         }
         while(b.clusteringKeyValues.size()>maxIndexBucket)
+        {
             b.clusteringKeyValues.remove(b.clusteringKeyValues.size()-1);
+            b.IndexColumnValues.remove(b.IndexColumnValues.size()-1);
+        }
         String name = currentTable+"_index_"+indexNum+"_bucket_"+b.bucketNumber;
         writeBucket(b,name);
 
@@ -378,13 +386,13 @@ public class DBApp implements DBAppInterface {
             currentTable.pageNames.add(tableName + "0");
             currentTable.pageRanges.add(new Pair(clustObj, clustObj));
             currentTable.pageSizes.add(0);
-            Vector<Hashtable> page = new Vector<Hashtable>();
+            Vector<Hashtable<String, Object>> page = new Vector<>();
             page.add(colNameValue);
             updatePageInfo(currentTable, page, 0);
         } else {
             int pageIndex = binarySearchTable(clustObj, currentTable);
             pageIndex = getPageIndex(currentTable, clustObj, pageIndex);
-            Vector<Hashtable> currentPage = readPage(currentTable, pageIndex);
+            Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, pageIndex);
 
             int ind = binarySearchPage(clustObj, currentPage, currentTable);
             if (ind == -1) currentPage.add(colNameValue);
@@ -467,7 +475,7 @@ public class DBApp implements DBAppInterface {
         return idx;
     }
 
-    public int binarySearchPage(Object clusterValue, Vector<Hashtable> currentPage, Table currentTable) {
+    public int binarySearchPage(Object clusterValue, Vector<Hashtable<String, Object>> currentPage, Table currentTable) {
         int lo = 0;
         int hi = currentPage.size() - 1;
         int ind = -1;
@@ -528,7 +536,7 @@ public class DBApp implements DBAppInterface {
         return ans;
     }
 
-    public void splitPage(Table currentTable, Vector<Hashtable> currentPage, int i) throws DBAppException {
+    public void splitPage(Table currentTable, Vector<Hashtable<String, Object>> currentPage, int i) throws DBAppException {
         String pageName;
         if (currentTable.availableNames.size() > 0) {
             pageName = currentTable.availableNames.get(0);
@@ -537,7 +545,7 @@ public class DBApp implements DBAppInterface {
         } else {
             pageName = currentTable.name + currentTable.pageSizes.size();
         }
-        Vector<Hashtable> newPage = new Vector<>();
+        Vector<Hashtable<String, Object>> newPage = new Vector<>();
         for (int j = maxPageSize / 2; j <= maxPageSize; j++) {
             Hashtable entry = currentPage.get(j);
             newPage.add(entry);
@@ -582,7 +590,7 @@ public class DBApp implements DBAppInterface {
             System.out.println("0 row(s) affected");
             return;
         }
-        Vector<Hashtable> currentPage = readPage(currentTable, pageNumber);
+        Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, pageNumber);
         int ind = binarySearchPage(clust, currentPage, currentTable);
         if (compare(currentPage.get(ind).get(clusteringColumn), (clust)) == 0) {
             Iterator<String> it = columnNameValue.keySet().iterator();
@@ -614,7 +622,7 @@ public class DBApp implements DBAppInterface {
                 System.out.println("0 row(s) affected");
                 return;
             }
-            Vector<Hashtable> currentPage = readPage(currentTable, pageNumber);
+            Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, pageNumber);
             int ind = binarySearchPage(clusteringValue, currentPage, currentTable);
             if (compare(currentPage.get(ind).get(clusteringColumn), clusteringValue) != 0) {
                 System.out.println("0 row(s) affected");
@@ -637,7 +645,7 @@ public class DBApp implements DBAppInterface {
             int c = 0;
             for (int i = 0; i < currentTable.pageNames.size(); i++) {
                 boolean updatePage = false;
-                Vector<Hashtable> currentPage = readPage(currentTable, i);
+                Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, i);
 
                 loop:
                 for (int j = 0; j < currentPage.size(); j++) {
@@ -661,8 +669,151 @@ public class DBApp implements DBAppInterface {
 
     @Override
     public Iterator selectFromTable(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException {
+        // don't forget to validate
         return null;
     }
+
+    public Grid getIndex(Table currentTable, Vector<SQLTerm>terms) throws DBAppException {
+      HashSet<String> cols = new HashSet<>();
+      for(SQLTerm s: terms)
+      {
+          if(!s.operator.equals("!="))
+             cols.add(s.columnName);
+      }
+      int ans=-1, max=0;
+      for(int i=0;i<currentTable.indices.size();i++)
+      {
+          String[] index = currentTable.indices.get(i);
+          int matches=0;
+          for(int j=0;j<index.length;j++)
+              if(cols.contains(index[i]))matches++;
+          if(matches>max)
+          {
+              max = matches;
+              ans = i;
+          }
+      }
+
+      if(ans==-1)
+        return null;
+
+      return readGrid(currentTable.name, ans);
+
+    }
+
+
+    public Iterator filterResults(HashSet<Object>clusteringKeys, Table currentTable) throws DBAppException {
+        Vector<Hashtable<String,Object>> ans = new Vector<>();
+        HashMap<Integer,Vector<Object>> mapping = new HashMap<>();
+        for(Object key: clusteringKeys)
+        {
+            int pageNumber = binarySearchTable(key, currentTable);
+            Vector<Object> tmp = mapping.getOrDefault(pageNumber, new Vector<>());
+            tmp.add(key);
+            mapping.put(pageNumber, tmp);
+        }
+        for(HashMap.Entry<Integer, Vector<Object>>entry: mapping.entrySet())
+        {
+            int pageNumber = entry.getKey();
+            Vector<Object>keys = entry.getValue();
+            Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, pageNumber);
+            loop : for(Object key : keys)
+            {
+                int idx = binarySearchPage(key, currentPage, currentTable);
+                Hashtable<String, Object> row = currentPage.get(idx);
+                ans.add(row);
+            }
+        }
+        return ans.iterator();
+    }
+
+
+    public HashSet<Object>searchIndex(Grid index, Vector<SQLTerm>terms) throws DBAppException {
+        HashSet<Object>ans = new HashSet<>();
+        loop: for(int i=0;i<index.ranges.length;i++)
+        {
+            for(SQLTerm term: terms)
+            {
+                if(term.columnName.equals(index.columnName))
+                {
+                    int greaterThanMin = compare(term.value, index.ranges[i].min);
+                    int lessThanMAx = compare(index.ranges[i].max, term.value);
+                    if(term.operator.equals("="))
+                        if(greaterThanMin<0 || lessThanMAx<0)continue loop;
+
+                    else if(term.operator.equals(">") && lessThanMAx<=0)
+                        continue loop;
+
+                    else if(term.operator.equals(">=") && lessThanMAx<0)
+                        continue loop;
+
+                    else if(term.operator.equals("<") && greaterThanMin<=0) continue loop;
+                    else if(term.operator.equals("<=") && greaterThanMin<0) continue loop;
+                }
+            }
+            if(index.references[i] instanceof Grid)
+            {
+                HashSet<Object>tmp = searchIndex((Grid)index.references[i], terms);
+                Iterator<Object> itr = tmp.iterator();
+                while ((itr.hasNext()))
+                    ans.add(itr.next());
+            }
+            else
+            {
+                Bucket b = readBucket((String)index.references[i]);
+                loop2: for(int k=0;k<b.IndexColumnValues.size();k++)
+                {
+                    for(SQLTerm term : terms)
+                    {
+                        if(b.IndexColumnValues.get(k).containsKey(term.columnName)) {
+
+
+                            Object value = b.IndexColumnValues.get(k).get(term.columnName);
+                            int compVal = compare(value, term.value);
+                            if (term.operator.equals("=") && compVal != 0) continue loop2;
+                            else if (term.operator.equals("!=") && compVal == 0) continue loop2;
+                            else if (term.operator.equals(">") && compVal <= 0) continue loop2;
+                            else if (term.operator.equals(">=") && compVal < 0) continue loop2;
+                            else if (term.operator.equals("<") && compVal >= 0) continue loop2;
+                            else if (term.operator.equals("<=") && compVal > 0) continue loop2;
+                        }
+
+                    }
+                    ans.add(b.clusteringKeyValues.get(k));
+
+                }
+                for(String ovfName: b.overflow)
+                {
+                    Bucket ovf = readBucket(ovfName);
+                    loop2: for(int k=0;k<ovf.IndexColumnValues.size();k++)
+                    {
+                        for(SQLTerm term : terms)
+                        {
+                            if(ovf.IndexColumnValues.get(k).containsKey(term.columnName)) {
+
+
+                                Object value = ovf.IndexColumnValues.get(k).get(term.columnName);
+                                int compVal = compare(value, term.value);
+                                if (term.operator.equals("=") && compVal != 0) continue loop2;
+                                else if (term.operator.equals("!=") && compVal == 0) continue loop2;
+                                else if (term.operator.equals(">") && compVal <= 0) continue loop2;
+                                else if (term.operator.equals(">=") && compVal < 0) continue loop2;
+                                else if (term.operator.equals("<") && compVal >= 0) continue loop2;
+                                else if (term.operator.equals("<=") && compVal > 0) continue loop2;
+                            }
+
+                        }
+                        ans.add(ovf.clusteringKeyValues.get(k));
+
+                    }
+                }
+            }
+
+
+        }
+        return ans;
+    }
+
 
 
     public Table findTable(String tableName) throws DBAppException {
@@ -711,7 +862,7 @@ public class DBApp implements DBAppInterface {
         }
     }
 
-    public void writePage(String pageName, Vector<Hashtable> page) throws DBAppException {
+    public void writePage(String pageName, Vector<Hashtable<String, Object>> page) throws DBAppException {
         try {
             FileOutputStream fileOut =
                     new FileOutputStream("src/main/resources/data/" + pageName + ".ser");
@@ -724,7 +875,7 @@ public class DBApp implements DBAppInterface {
         }
     }
 
-    public void updatePageInfo(Table currentTable, Vector<Hashtable> currentPage, int i) throws DBAppException {
+    public void updatePageInfo(Table currentTable, Vector<Hashtable<String, Object>> currentPage, int i) throws DBAppException {
         String name = currentTable.pageNames.get(i);
         File file = new File("src/main/resources/data/" + name + ".ser");
         file.delete();
@@ -745,7 +896,7 @@ public class DBApp implements DBAppInterface {
         writeTable(currentTable);
     }
 
-    public void addNewPage(Table currentTable, String name, Vector<Hashtable> currentPage, int i) throws DBAppException {
+    public void addNewPage(Table currentTable, String name, Vector<Hashtable<String, Object>> currentPage, int i) throws DBAppException {
         Object min = currentPage.get(0).get(currentTable.clusteringColumn);
         Object max = currentPage.get(currentPage.size() - 1).get(currentTable.clusteringColumn);
         currentTable.pageSizes.add(i, currentPage.size());
@@ -824,11 +975,11 @@ public class DBApp implements DBAppInterface {
         }
     }
 
-    public Vector<Hashtable> readPage(Table currentTable, int i) throws DBAppException {
+    public Vector<Hashtable<String,Object>> readPage(Table currentTable, int i) throws DBAppException {
         try {
             FileInputStream fileIn = new FileInputStream("src/main/resources/data/" + currentTable.pageNames.get(i) + ".ser");
             ObjectInputStream in = new ObjectInputStream(fileIn);
-            Vector<Hashtable> currentPage = (Vector<Hashtable>) in.readObject();
+            Vector<Hashtable<String, Object>> currentPage = (Vector<Hashtable<String,Object>>) in.readObject();
             in.close();
             fileIn.close();
             return currentPage;
