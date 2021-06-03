@@ -1,5 +1,6 @@
 import au.com.bytecode.opencsv.CSVReader;
 import au.com.bytecode.opencsv.CSVWriter;
+import org.junit.validator.ValidateWith;
 
 import java.io.*;
 import java.nio.BufferUnderflowException;
@@ -673,6 +674,100 @@ public class DBApp implements DBAppInterface {
         return null;
     }
 
+    public HashSet<Object> splitOR (SQLTerm[] sqlTerms, String[] arrayOperators) {
+        Vector<HashSet> result = new Vector<>();
+        Vector<SQLTerm> temp = new Vector<>();
+        HashSet<Object> x = new HashSet<>();
+        if(sqlTerms.length==0)
+            return null;
+        temp.add(sqlTerms[0]);
+        Vector<String> l = new Vector<>();
+        for (int i = 0 ; i<arrayOperators.length; i++)
+        {
+            if(!arrayOperators[i].equals("OR")){
+                temp.add(sqlTerms[i+1]);
+                l.add(arrayOperators[i]);
+            }
+            else{
+                x = splitXOR(temp, l);
+                result.add(x);
+                temp=new Vector<>();
+                l = new Vector<>();
+                temp.add(sqlTerms[i+1]);
+            }
+        }
+        x = splitXOR(temp, l);
+        result.add(x);
+
+        // evaluating the XOR
+
+        HashSet<Object> finalResult = OR(result);
+        return finalResult;
+    }
+
+    public HashSet<Object> splitXOR (Vector<SQLTerm> sqlTerms, Vector<String> arrayOperators){
+        Vector<HashSet> result = new Vector<>();
+        Vector<SQLTerm> temp = new Vector<>();
+        HashSet<Object> x = new HashSet<>();
+        if(sqlTerms.size()==0)
+            return null;
+        temp.add(sqlTerms.get(0));
+        for (int i = 0 ; i<arrayOperators.size(); i++)
+        {
+            if (arrayOperators.get(i).equals("XOR")) {
+                x = AND(temp);
+                result.add(x);
+                temp = new Vector<>();
+            }
+            temp.add(sqlTerms.get(i+1));
+        }
+        x = AND(temp);
+        result.add(x);
+
+        // evaluating the XOR
+
+        HashSet<Object> finalResult = XOR(result);
+        return finalResult;
+    }
+
+    public HashSet<Object> OR (Vector<HashSet> sqlTerms){
+        HashSet<Object> finalResult = sqlTerms.get(0);
+        Iterator<HashSet> it = sqlTerms.iterator();
+        if (it.hasNext())
+            it.next();
+        else
+            return null;
+        while (it.hasNext()) {
+            HashSet<Object> key = it.next();
+            Iterator<Object> it1 = key.iterator();
+            while (it1.hasNext()) {
+                finalResult.add(it.next());
+            }
+        }
+        return finalResult;
+    }
+
+    public HashSet<Object> XOR (Vector<HashSet> sqlTerms){
+        HashSet<Object> finalResult = sqlTerms.get(0);
+        Iterator<HashSet> it = sqlTerms.iterator();
+        if (it.hasNext())
+            it.next();
+        else
+            return null;
+        while (it.hasNext()) {
+            HashSet<Object> key = it.next();
+            Iterator<Object> it1 = key.iterator();
+            while (it1.hasNext()) {
+                Object key1 = it1.next();
+                if (finalResult.contains(key1))
+                    finalResult.remove(key1);
+                else
+                    finalResult.add(key1);
+            }
+        }
+        return finalResult;
+    }
+
     public Grid getIndex(Table currentTable, Vector<SQLTerm>terms) throws DBAppException {
       HashSet<String> cols = new HashSet<>();
       for(SQLTerm s: terms)
@@ -813,6 +908,8 @@ public class DBApp implements DBAppInterface {
         }
         return ans;
     }
+
+
 
 
 
