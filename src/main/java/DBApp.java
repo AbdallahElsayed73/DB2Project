@@ -1,5 +1,6 @@
 import au.com.bytecode.opencsv.CSVReader;
 import au.com.bytecode.opencsv.CSVWriter;
+import org.junit.validator.ValidateWith;
 
 import java.io.*;
 import java.nio.BufferUnderflowException;
@@ -146,7 +147,7 @@ public class DBApp implements DBAppInterface {
         {
             Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, i);
             for(Hashtable<String, Object> row: currentPage) {
-                int idx = getBucket(columnNames, index, row, 0);
+                int idx = getBucket(index, row);
                 buckets[idx].clusteringKeyValues.add(row.get(currentTable.clusteringColumn));
                 Hashtable<String, Object> indexColVals = new Hashtable<>();
                 for(String colName : columnNames)
@@ -260,21 +261,21 @@ public class DBApp implements DBAppInterface {
 
 
 
-    public int getBucket(String[] columnNames, Grid index, Hashtable<String, Object> row, int i)
+    public int getBucket( Grid index, Hashtable<String, Object> row)
     {
         int min =0, max = index.ranges.length-1;
         while(min<=max)
         {
             int mid = (min+max)>>1;
-            int compareMin = compare(row.get(columnNames[i]), index.ranges[mid].min);
-            int compareMax = compare(index.ranges[mid].max, row.get(columnNames[i]));
+            int compareMin = compare(row.get(index.columnName), index.ranges[mid].min);
+            int compareMax = compare(index.ranges[mid].max, row.get(index.columnName));
             if(compareMin>=0 && compareMax>=0)
             {
-                if(i==columnNames.length-1) {
+                if(index.references[mid] instanceof String) {
                     String[] parse = ((String) index.references[mid]).split("_");
                     return Integer.parseInt(parse[parse.length - 1]);
                 }
-                return getBucket(columnNames, (Grid)index.references[mid], row, i+1);
+                return getBucket( (Grid)index.references[mid], row);
             }
             else if(compareMax<0)
             {
@@ -405,7 +406,7 @@ public class DBApp implements DBAppInterface {
             for(int i=0;i<currentTable.indices.size();i++)
             {
                 Grid g = readGrid(currentTable.name,i);
-                int bucketNo= getBucket(currentTable.indices.get(i),g,colNameValue,0);
+                int bucketNo= getBucket(g,colNameValue);
                 Bucket b = readBucket(tableName+ "_index_"+i+"_bucket_"+bucketNo);
 
             }
@@ -483,8 +484,6 @@ public class DBApp implements DBAppInterface {
             int mid = (lo + hi) >> 1;
             Object V = currentPage.get(mid).get(currentTable.clusteringColumn);
             int ans = compare(V, clusterValue);
-//            if(ans==0)
-//                throw new DBAppException("The given value already exists");
             if (ans >= 0) {
                 ind = mid;
                 hi = mid - 1;
@@ -607,12 +606,31 @@ public class DBApp implements DBAppInterface {
 
     }
 
+    public Vector<SQLTerm> generateSQLTerms(String tableName, Hashtable<String, Object> columnNameValue)
+    {
+        Vector<SQLTerm> terms = new Vector<>();
+        Iterator<String> itr = columnNameValue.keySet().iterator();
+        while(itr.hasNext())
+        {
+            String columnName = itr.next();
+            Object val = columnNameValue.get(columnName);
+            SQLTerm term = new SQLTerm();
+            term._strTableName = tableName;
+            term._strColumnName= columnName;
+            term._strOperator = "=";
+            term._objValue = val;
+            terms.add(term);
+        }
+        return terms;
+    }
+
 
     @Override
     public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException {
         validate(tableName, columnNameValue, false);
         Table currentTable = findTable(tableName);
         String clusteringColumn = currentTable.clusteringColumn;
+        Vector<Hashtable<String, Object>> deleted = new Vector<>();
         if (columnNameValue.contains(clusteringColumn)) {
             Object clusteringValue = columnNameValue.get(clusteringColumn);
             int pageNumber = binarySearchTable(clusteringValue, currentTable);
@@ -638,47 +656,317 @@ public class DBApp implements DBAppInterface {
                     return;
                 }
             }
+            deleted.add(currentPage.get(ind));
             currentPage.remove(ind);
             updatePageInfo(currentTable, currentPage, pageNumber);
-            System.out.println("1 row(s) affected");
         } else {
-            int c = 0;
-            for (int i = 0; i < currentTable.pageNames.size(); i++) {
-                boolean updatePage = false;
-                Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, i);
 
-                loop:
-                for (int j = 0; j < currentPage.size(); j++) {
-                    Iterator<String> it = columnNameValue.keySet().iterator();
-                    while (it.hasNext()) {
-                        String key = it.next();
-                        Object inputVal = columnNameValue.get(key);
-                        Object recordVal = currentPage.get(j).get(key);
-                        if (recordVal == null || compare(inputVal, recordVal) != 0)
-                            continue loop;
+            Vector<SQLTerm> terms = generateSQLTerms(tableName, columnNameValue);
+            Grid g = getIndex(currentTable, terms);
+            if(g==null)
+            {
+                int c = 0;
+                for (int i = 0; i < currentTable.pageNames.size(); i++) {
+                    boolean updatePage = false;
+                    Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, i);
+
+                    loop:
+                    for (int j = 0; j < currentPage.size(); j++) {
+                        Iterator<String> it = columnNameValue.keySet().iterator();
+                        while (it.hasNext()) {
+                            String key = it.next();
+                            Object inputVal = columnNameValue.get(key);
+                            Object recordVal = currentPage.get(j).get(key);
+                            if (recordVal == null || compare(inputVal, recordVal) != 0)
+                                continue loop;
+                        }
+                        deleted.add(currentPage.get(j));
+                        currentPage.remove(j--);
+                        updatePage = true;
                     }
-                    c++;
-                    currentPage.remove(j--);
-                    updatePage = true;
+                    if (updatePage) updatePageInfo(currentTable, currentPage, i);
                 }
-                if (updatePage) updatePageInfo(currentTable, currentPage, i);
+
             }
-            System.out.println(c + " row(s) affected");
+            else
+            {
+                HashSet<Object> clusteringKeys = new HashSet<>();
+                HashMap<Integer,Vector<Object>> mapping = new HashMap<>();
+                for(Object key: clusteringKeys)
+                {
+                    int pageNumber = binarySearchTable(key, currentTable);
+                    Vector<Object> tmp = mapping.getOrDefault(pageNumber, new Vector<>());
+                    tmp.add(key);
+                    mapping.put(pageNumber, tmp);
+                }
+                for(HashMap.Entry<Integer, Vector<Object>>entry: mapping.entrySet())
+                {
+                    boolean updatePage = false;
+                    int pageNumber = entry.getKey();
+                    Vector<Object>keys = entry.getValue();
+                    Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, pageNumber);
+                    loop : for(Object key : keys)
+                    {
+                        int idx = binarySearchPage(key, currentPage, currentTable);
+                        Hashtable<String, Object> row = currentPage.get(idx);
+                        for(SQLTerm term: terms)
+                        {
+                            Object rowVal = row.get(term._strColumnName);
+                            int comVal = compare(rowVal, term._objValue);
+                            if(term._strOperator.equals("=")&& comVal!=0)
+                                continue loop;
+
+                            else if(term._strOperator.equals(">") && comVal<=0)
+                                continue loop;
+
+                            else if(term._strOperator.equals(">=") && comVal<0)
+                                continue loop;
+
+                            else if(term._strOperator.equals("<") && comVal>=0) continue loop;
+                            else if(term._strOperator.equals("<=") && comVal>0) continue loop;
+                            else if(term._strOperator.equals("!=") && comVal==0) continue loop;
+
+                        }
+                        deleted.add(currentPage.get(idx));
+                        currentPage.remove(idx);
+                        updatePage = true;
+                    }
+                    if(updatePage) updatePageInfo(currentTable, currentPage, pageNumber);
+                }
+
+            }
+
         }
+
+        System.out.println(deleted.size()+ "row(s) affected");
+        for(int i=0;i<currentTable.indices.size();i++)
+        {
+            Grid g = readGrid(currentTable.name, i);
+            deleteFromIndex(currentTable, g, i, deleted);
+        }
+
+    }
+
+    public void deleteFromIndex(Table currentTable, Grid g,int indexNum, Vector<Hashtable<String, Object>> deleted) throws DBAppException {
+        for(Hashtable<String, Object>row: deleted)
+            deleteRowFromIndex(currentTable, g,indexNum, row);
+    }
+
+    public void deleteFile(String fileName)
+    {
+        File file = new File("src/main/resources/data/" + fileName + ".ser");
+        file.delete();
+    }
+
+    public void deleteRowFromIndex(Table currentTable, Grid g,int indexNum, Hashtable<String, Object>row) throws DBAppException {
+        int bucketNum = getBucket(g, row);
+        String bucketName = currentTable.name+"_index_"+indexNum+"_bucket_"+bucketNum;
+        Bucket bucket = readBucket(bucketName);
+        for(int i=0;i<bucket.IndexColumnValues.size();i++)
+        {
+            if(compare(bucket.clusteringKeyValues.get(i), row.get(currentTable.clusteringColumn)) == 0)
+            {
+                bucket.clusteringKeyValues.remove(i);
+                bucket.IndexColumnValues.remove(i);
+                if(bucket.clusteringKeyValues.size()==0)
+                {
+                    if(bucket.overflow.size()>0) {
+                        String ovfName = bucket.overflow.get(bucket.overflow.size() - 1);
+                        Bucket ovfBucket = readBucket(ovfName);
+                        bucket.clusteringKeyValues = ovfBucket.clusteringKeyValues;
+                        bucket.IndexColumnValues = ovfBucket.IndexColumnValues;
+                        bucket.overflow.remove(bucket.overflow.size() - 1);
+                        bucket.sizes.remove(bucket.sizes.size() - 1);
+                        deleteFile(ovfName);
+                    }
+                    writeBucket(bucket,bucketName);
+                    return;
+                }
+            }
+        }
+
+        for(int i=0;i<bucket.overflow.size();i++)
+        {
+            Bucket ovfBucket = readBucket(bucket.overflow.get(i));
+            for(int j=0;j<ovfBucket.IndexColumnValues.size();j++)
+            {
+                if(compare(ovfBucket.clusteringKeyValues.get(j), row.get(currentTable.clusteringColumn)) == 0)
+                {
+                    ovfBucket.clusteringKeyValues.remove(j);
+                    ovfBucket.IndexColumnValues.remove(j);
+                    if(ovfBucket.clusteringKeyValues.size()==0)
+                    {
+                        deleteFile(bucket.overflow.get(i));
+                        bucket.overflow.remove(j);
+                        bucket.sizes.remove(j);
+
+                    }
+                    return;
+                }
+            }
+        }
+
+
+    }
+
+    public void validateSelection(SQLTerm[] sqlTerms, String[] arrayOperators)
+    {
+
     }
 
     @Override
     public Iterator selectFromTable(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException {
         // don't forget to validate
-        return null;
+        Table currentTable = readTable(sqlTerms[0]._strTableName);
+
+        HashSet<Object> resultSet = splitOR(currentTable, sqlTerms, arrayOperators);
+
+        return filterResults(resultSet,currentTable, sqlTerms);
+    }
+
+    public HashSet<Object> splitOR (Table currentTable, SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException {
+        Vector<HashSet> result = new Vector<>();
+        Vector<SQLTerm> temp = new Vector<>();
+        HashSet<Object> x = new HashSet<>();
+        if(sqlTerms.length==0)
+            return null;
+        temp.add(sqlTerms[0]);
+        Vector<String> l = new Vector<>();
+        for (int i = 0 ; i<arrayOperators.length; i++)
+        {
+            if(!arrayOperators[i].equals("OR")){
+                temp.add(sqlTerms[i+1]);
+                l.add(arrayOperators[i]);
+            }
+            else{
+                x = splitXOR(currentTable, temp, l);
+                result.add(x);
+                temp=new Vector<>();
+                l = new Vector<>();
+                temp.add(sqlTerms[i+1]);
+            }
+        }
+
+
+        x = splitXOR(currentTable, temp, l);
+        result.add(x);
+
+        // evaluating the XOR
+
+        HashSet<Object> finalResult = OR(result);
+        return finalResult;
+    }
+
+    public HashSet<Object> splitXOR (Table currentTable, Vector<SQLTerm> sqlTerms, Vector<String> arrayOperators) throws DBAppException {
+        Vector<HashSet> result = new Vector<>();
+        Vector<SQLTerm> temp = new Vector<>();
+        HashSet<Object> x = new HashSet<>();
+        if(sqlTerms.size()==0)
+            return null;
+        temp.add(sqlTerms.get(0));
+        for (int i = 0 ; i<arrayOperators.size(); i++)
+        {
+            if (arrayOperators.get(i).equals("XOR")) {
+                Grid g = getIndex(currentTable, temp);
+                if(g==null)
+                    x = linearSearch(currentTable, temp);
+                else
+                    x = searchIndex(g, temp);
+                result.add(x);
+                temp = new Vector<>();
+            }
+            temp.add(sqlTerms.get(i+1));
+        }
+        Grid g = getIndex(currentTable, temp);
+        if(g==null)
+            x = linearSearch(currentTable, temp);
+        else
+            x = searchIndex(g, temp);
+        result.add(x);
+
+        // evaluating the XOR
+
+        HashSet<Object> finalResult = XOR(result);
+        return finalResult;
+    }
+
+    public HashSet<Object> linearSearch(Table currentTable, Vector<SQLTerm> terms) throws DBAppException {
+        HashSet<Object> ans = new HashSet<>();
+        for(int i=0;i<currentTable.pageNames.size();i++)
+        {
+            Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, i);
+            loop: for(Hashtable<String, Object> row : currentPage)
+            {
+                for(SQLTerm term: terms)
+                {
+                    Object rowVal = row.get(term._strColumnName);
+                    int comVal = compare(rowVal, term._objValue);
+                    if(term._strOperator.equals("=")&& comVal!=0)
+                        continue loop;
+
+                    else if(term._strOperator.equals(">") && comVal<=0)
+                        continue loop;
+
+                    else if(term._strOperator.equals(">=") && comVal<0)
+                        continue loop;
+
+                    else if(term._strOperator.equals("<") && comVal>=0) continue loop;
+                    else if(term._strOperator.equals("<=") && comVal>0) continue loop;
+                    else if(term._strOperator.equals("!=") && comVal==0) continue loop;
+
+                }
+                ans.add(row.get(currentTable.clusteringColumn));
+            }
+        }
+        return ans;
+    }
+
+
+
+    public HashSet<Object> OR (Vector<HashSet> sqlTerms){
+        HashSet<Object> finalResult = sqlTerms.get(0);
+        Iterator<HashSet> it = sqlTerms.iterator();
+        if (it.hasNext())
+            it.next();
+        else
+            return null;
+        while (it.hasNext()) {
+            HashSet<Object> key = it.next();
+            Iterator<Object> it1 = key.iterator();
+            while (it1.hasNext()) {
+                finalResult.add(it.next());
+            }
+        }
+        return finalResult;
+    }
+
+    public HashSet<Object> XOR (Vector<HashSet> sqlTerms){
+        HashSet<Object> finalResult = sqlTerms.get(0);
+        Iterator<HashSet> it = sqlTerms.iterator();
+        if (it.hasNext())
+            it.next();
+        else
+            return null;
+        while (it.hasNext()) {
+            HashSet<Object> key = it.next();
+            Iterator<Object> it1 = key.iterator();
+            while (it1.hasNext()) {
+                Object key1 = it1.next();
+                if (finalResult.contains(key1))
+                    finalResult.remove(key1);
+                else
+                    finalResult.add(key1);
+            }
+        }
+        return finalResult;
     }
 
     public Grid getIndex(Table currentTable, Vector<SQLTerm>terms) throws DBAppException {
       HashSet<String> cols = new HashSet<>();
       for(SQLTerm s: terms)
       {
-          if(!s.operator.equals("!="))
-             cols.add(s.columnName);
+          if(!s._strOperator.equals("!="))
+             cols.add(s._strColumnName);
       }
       int ans=-1, max=0;
       for(int i=0;i<currentTable.indices.size();i++)
@@ -702,7 +990,7 @@ public class DBApp implements DBAppInterface {
     }
 
 
-    public Iterator filterResults(HashSet<Object>clusteringKeys, Table currentTable) throws DBAppException {
+    public Iterator filterResults(HashSet<Object>clusteringKeys, Table currentTable, SQLTerm[] terms) throws DBAppException {
         Vector<Hashtable<String,Object>> ans = new Vector<>();
         HashMap<Integer,Vector<Object>> mapping = new HashMap<>();
         for(Object key: clusteringKeys)
@@ -721,6 +1009,24 @@ public class DBApp implements DBAppInterface {
             {
                 int idx = binarySearchPage(key, currentPage, currentTable);
                 Hashtable<String, Object> row = currentPage.get(idx);
+                for(SQLTerm term: terms)
+                {
+                    Object rowVal = row.get(term._strColumnName);
+                    int comVal = compare(rowVal, term._objValue);
+                    if(term._strOperator.equals("=")&& comVal!=0)
+                        continue loop;
+
+                    else if(term._strOperator.equals(">") && comVal<=0)
+                        continue loop;
+
+                    else if(term._strOperator.equals(">=") && comVal<0)
+                        continue loop;
+
+                    else if(term._strOperator.equals("<") && comVal>=0) continue loop;
+                    else if(term._strOperator.equals("<=") && comVal>0) continue loop;
+                    else if(term._strOperator.equals("!=") && comVal==0) continue loop;
+
+                }
                 ans.add(row);
             }
         }
@@ -734,21 +1040,21 @@ public class DBApp implements DBAppInterface {
         {
             for(SQLTerm term: terms)
             {
-                if(term.columnName.equals(index.columnName))
+                if(term._strColumnName.equals(index.columnName))
                 {
-                    int greaterThanMin = compare(term.value, index.ranges[i].min);
-                    int lessThanMAx = compare(index.ranges[i].max, term.value);
-                    if(term.operator.equals("="))
+                    int greaterThanMin = compare(term._objValue, index.ranges[i].min);
+                    int lessThanMAx = compare(index.ranges[i].max, term._objValue);
+                    if(term._strOperator.equals("="))
                         if(greaterThanMin<0 || lessThanMAx<0)continue loop;
 
-                    else if(term.operator.equals(">") && lessThanMAx<=0)
+                    else if(term._strOperator.equals(">") && lessThanMAx<=0)
                         continue loop;
 
-                    else if(term.operator.equals(">=") && lessThanMAx<0)
+                    else if(term._strOperator.equals(">=") && lessThanMAx<0)
                         continue loop;
 
-                    else if(term.operator.equals("<") && greaterThanMin<=0) continue loop;
-                    else if(term.operator.equals("<=") && greaterThanMin<0) continue loop;
+                    else if(term._strOperator.equals("<") && greaterThanMin<=0) continue loop;
+                    else if(term._strOperator.equals("<=") && greaterThanMin<0) continue loop;
                 }
             }
             if(index.references[i] instanceof Grid)
@@ -765,17 +1071,17 @@ public class DBApp implements DBAppInterface {
                 {
                     for(SQLTerm term : terms)
                     {
-                        if(b.IndexColumnValues.get(k).containsKey(term.columnName)) {
+                        if(b.IndexColumnValues.get(k).containsKey(term._strColumnName)) {
 
 
-                            Object value = b.IndexColumnValues.get(k).get(term.columnName);
-                            int compVal = compare(value, term.value);
-                            if (term.operator.equals("=") && compVal != 0) continue loop2;
-                            else if (term.operator.equals("!=") && compVal == 0) continue loop2;
-                            else if (term.operator.equals(">") && compVal <= 0) continue loop2;
-                            else if (term.operator.equals(">=") && compVal < 0) continue loop2;
-                            else if (term.operator.equals("<") && compVal >= 0) continue loop2;
-                            else if (term.operator.equals("<=") && compVal > 0) continue loop2;
+                            Object value = b.IndexColumnValues.get(k).get(term._strColumnName);
+                            int compVal = compare(value, term._objValue);
+                            if (term._strOperator.equals("=") && compVal != 0) continue loop2;
+                            else if (term._strOperator.equals("!=") && compVal == 0) continue loop2;
+                            else if (term._strOperator.equals(">") && compVal <= 0) continue loop2;
+                            else if (term._strOperator.equals(">=") && compVal < 0) continue loop2;
+                            else if (term._strOperator.equals("<") && compVal >= 0) continue loop2;
+                            else if (term._strOperator.equals("<=") && compVal > 0) continue loop2;
                         }
 
                     }
@@ -789,17 +1095,17 @@ public class DBApp implements DBAppInterface {
                     {
                         for(SQLTerm term : terms)
                         {
-                            if(ovf.IndexColumnValues.get(k).containsKey(term.columnName)) {
+                            if(ovf.IndexColumnValues.get(k).containsKey(term._strColumnName)) {
 
 
-                                Object value = ovf.IndexColumnValues.get(k).get(term.columnName);
-                                int compVal = compare(value, term.value);
-                                if (term.operator.equals("=") && compVal != 0) continue loop2;
-                                else if (term.operator.equals("!=") && compVal == 0) continue loop2;
-                                else if (term.operator.equals(">") && compVal <= 0) continue loop2;
-                                else if (term.operator.equals(">=") && compVal < 0) continue loop2;
-                                else if (term.operator.equals("<") && compVal >= 0) continue loop2;
-                                else if (term.operator.equals("<=") && compVal > 0) continue loop2;
+                                Object value = ovf.IndexColumnValues.get(k).get(term._strColumnName);
+                                int compVal = compare(value, term._objValue);
+                                if (term._strOperator.equals("=") && compVal != 0) continue loop2;
+                                else if (term._strOperator.equals("!=") && compVal == 0) continue loop2;
+                                else if (term._strOperator.equals(">") && compVal <= 0) continue loop2;
+                                else if (term._strOperator.equals(">=") && compVal < 0) continue loop2;
+                                else if (term._strOperator.equals("<") && compVal >= 0) continue loop2;
+                                else if (term._strOperator.equals("<=") && compVal > 0) continue loop2;
                             }
 
                         }
@@ -813,6 +1119,8 @@ public class DBApp implements DBAppInterface {
         }
         return ans;
     }
+
+
 
 
 
