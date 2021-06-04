@@ -4,7 +4,7 @@ public class SQLTerm {
     String operator;
     Object value;
 
-    public SQLTerm(String tableName, String columnName, String operator, String value)
+    public SQLTerm(String tableName, String columnName, String operator, Object value)
     {
         this.tableName = tableName;
         this.columnName = columnName;

@@ -147,7 +147,7 @@ public class DBApp implements DBAppInterface {
         {
             Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, i);
             for(Hashtable<String, Object> row: currentPage) {
-                int idx = getBucket(columnNames, index, row, 0);
+                int idx = getBucket(index, row);
                 buckets[idx].clusteringKeyValues.add(row.get(currentTable.clusteringColumn));
                 Hashtable<String, Object> indexColVals = new Hashtable<>();
                 for(String colName : columnNames)
@@ -261,21 +261,21 @@ public class DBApp implements DBAppInterface {
 
 
 
-    public int getBucket(String[] columnNames, Grid index, Hashtable<String, Object> row, int i)
+    public int getBucket( Grid index, Hashtable<String, Object> row)
     {
         int min =0, max = index.ranges.length-1;
         while(min<=max)
         {
             int mid = (min+max)>>1;
-            int compareMin = compare(row.get(columnNames[i]), index.ranges[mid].min);
-            int compareMax = compare(index.ranges[mid].max, row.get(columnNames[i]));
+            int compareMin = compare(row.get(index.columnName), index.ranges[mid].min);
+            int compareMax = compare(index.ranges[mid].max, row.get(index.columnName));
             if(compareMin>=0 && compareMax>=0)
             {
-                if(i==columnNames.length-1) {
+                if(index.references[mid] instanceof String) {
                     String[] parse = ((String) index.references[mid]).split("_");
                     return Integer.parseInt(parse[parse.length - 1]);
                 }
-                return getBucket(columnNames, (Grid)index.references[mid], row, i+1);
+                return getBucket( (Grid)index.references[mid], row);
             }
             else if(compareMax<0)
             {
@@ -406,7 +406,7 @@ public class DBApp implements DBAppInterface {
             for(int i=0;i<currentTable.indices.size();i++)
             {
                 Grid g = readGrid(currentTable.name,i);
-                int bucketNo= getBucket(currentTable.indices.get(i),g,colNameValue,0);
+                int bucketNo= getBucket(g,colNameValue);
                 Bucket b = readBucket(tableName+ "_index_"+i+"_bucket_"+bucketNo);
 
             }
@@ -608,12 +608,27 @@ public class DBApp implements DBAppInterface {
 
     }
 
+    public Vector<SQLTerm> generateSQLTerms(String tableName, Hashtable<String, Object> columnNameValue)
+    {
+        Vector<SQLTerm> terms = new Vector<>();
+        Iterator<String> itr = columnNameValue.keySet().iterator();
+        while(itr.hasNext())
+        {
+            String columnName = itr.next();
+            Object val = columnNameValue.get(columnName);
+            SQLTerm term = new SQLTerm(tableName, columnName, "=", val);
+            terms.add(term);
+        }
+        return terms;
+    }
+
 
     @Override
     public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException {
         validate(tableName, columnNameValue, false);
         Table currentTable = findTable(tableName);
         String clusteringColumn = currentTable.clusteringColumn;
+        Vector<Hashtable<String, Object>> deleted = new Vector<>();
         if (columnNameValue.contains(clusteringColumn)) {
             Object clusteringValue = columnNameValue.get(clusteringColumn);
             int pageNumber = binarySearchTable(clusteringValue, currentTable);
@@ -639,42 +654,175 @@ public class DBApp implements DBAppInterface {
                     return;
                 }
             }
+            deleted.add(currentPage.get(ind));
             currentPage.remove(ind);
             updatePageInfo(currentTable, currentPage, pageNumber);
-            System.out.println("1 row(s) affected");
         } else {
-            int c = 0;
-            for (int i = 0; i < currentTable.pageNames.size(); i++) {
-                boolean updatePage = false;
-                Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, i);
 
-                loop:
-                for (int j = 0; j < currentPage.size(); j++) {
-                    Iterator<String> it = columnNameValue.keySet().iterator();
-                    while (it.hasNext()) {
-                        String key = it.next();
-                        Object inputVal = columnNameValue.get(key);
-                        Object recordVal = currentPage.get(j).get(key);
-                        if (recordVal == null || compare(inputVal, recordVal) != 0)
-                            continue loop;
+            Vector<SQLTerm> terms = generateSQLTerms(tableName, columnNameValue);
+            Grid g = getIndex(currentTable, terms);
+            if(g==null)
+            {
+                int c = 0;
+                for (int i = 0; i < currentTable.pageNames.size(); i++) {
+                    boolean updatePage = false;
+                    Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, i);
+
+                    loop:
+                    for (int j = 0; j < currentPage.size(); j++) {
+                        Iterator<String> it = columnNameValue.keySet().iterator();
+                        while (it.hasNext()) {
+                            String key = it.next();
+                            Object inputVal = columnNameValue.get(key);
+                            Object recordVal = currentPage.get(j).get(key);
+                            if (recordVal == null || compare(inputVal, recordVal) != 0)
+                                continue loop;
+                        }
+                        deleted.add(currentPage.get(j));
+                        currentPage.remove(j--);
+                        updatePage = true;
                     }
-                    c++;
-                    currentPage.remove(j--);
-                    updatePage = true;
+                    if (updatePage) updatePageInfo(currentTable, currentPage, i);
                 }
-                if (updatePage) updatePageInfo(currentTable, currentPage, i);
+
             }
-            System.out.println(c + " row(s) affected");
+            else
+            {
+                HashSet<Object> clusteringKeys = new HashSet<>();
+                HashMap<Integer,Vector<Object>> mapping = new HashMap<>();
+                for(Object key: clusteringKeys)
+                {
+                    int pageNumber = binarySearchTable(key, currentTable);
+                    Vector<Object> tmp = mapping.getOrDefault(pageNumber, new Vector<>());
+                    tmp.add(key);
+                    mapping.put(pageNumber, tmp);
+                }
+                for(HashMap.Entry<Integer, Vector<Object>>entry: mapping.entrySet())
+                {
+                    boolean updatePage = false;
+                    int pageNumber = entry.getKey();
+                    Vector<Object>keys = entry.getValue();
+                    Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, pageNumber);
+                    loop : for(Object key : keys)
+                    {
+                        int idx = binarySearchPage(key, currentPage, currentTable);
+                        Hashtable<String, Object> row = currentPage.get(idx);
+                        for(SQLTerm term: terms)
+                        {
+                            Object rowVal = row.get(term.columnName);
+                            int comVal = compare(rowVal, term.value);
+                            if(term.operator.equals("=")&& comVal!=0)
+                                continue loop;
+
+                            else if(term.operator.equals(">") && comVal<=0)
+                                continue loop;
+
+                            else if(term.operator.equals(">=") && comVal<0)
+                                continue loop;
+
+                            else if(term.operator.equals("<") && comVal>=0) continue loop;
+                            else if(term.operator.equals("<=") && comVal>0) continue loop;
+                            else if(term.operator.equals("!=") && comVal==0) continue loop;
+
+                        }
+                        deleted.add(currentPage.get(idx));
+                        currentPage.remove(idx);
+                        updatePage = true;
+                    }
+                    if(updatePage) updatePageInfo(currentTable, currentPage, pageNumber);
+                }
+
+            }
+
         }
+
+        System.out.println(deleted.size()+ "row(s) affected");
+        for(int i=0;i<currentTable.indices.size();i++)
+        {
+            Grid g = readGrid(currentTable.name, i);
+            deleteFromIndex(currentTable, g, i, deleted);
+        }
+
+    }
+
+    public void deleteFromIndex(Table currentTable, Grid g,int indexNum, Vector<Hashtable<String, Object>> deleted) throws DBAppException {
+        for(Hashtable<String, Object>row: deleted)
+            deleteRowFromIndex(currentTable, g,indexNum, row);
+    }
+
+    public void deleteFile(String fileName)
+    {
+        File file = new File("src/main/resources/data/" + fileName + ".ser");
+        file.delete();
+    }
+
+    public void deleteRowFromIndex(Table currentTable, Grid g,int indexNum, Hashtable<String, Object>row) throws DBAppException {
+        int bucketNum = getBucket(g, row);
+        String bucketName = currentTable.name+"_index_"+indexNum+"_bucket_"+bucketNum;
+        Bucket bucket = readBucket(bucketName);
+        for(int i=0;i<bucket.IndexColumnValues.size();i++)
+        {
+            if(compare(bucket.clusteringKeyValues.get(i), row.get(currentTable.clusteringColumn)) == 0)
+            {
+                bucket.clusteringKeyValues.remove(i);
+                bucket.IndexColumnValues.remove(i);
+                if(bucket.clusteringKeyValues.size()==0)
+                {
+                    if(bucket.overflow.size()>0) {
+                        String ovfName = bucket.overflow.get(bucket.overflow.size() - 1);
+                        Bucket ovfBucket = readBucket(ovfName);
+                        bucket.clusteringKeyValues = ovfBucket.clusteringKeyValues;
+                        bucket.IndexColumnValues = ovfBucket.IndexColumnValues;
+                        bucket.overflow.remove(bucket.overflow.size() - 1);
+                        bucket.sizes.remove(bucket.sizes.size() - 1);
+                        deleteFile(ovfName);
+                    }
+                    writeBucket(bucket,bucketName);
+                    return;
+                }
+            }
+        }
+
+        for(int i=0;i<bucket.overflow.size();i++)
+        {
+            Bucket ovfBucket = readBucket(bucket.overflow.get(i));
+            for(int j=0;j<ovfBucket.IndexColumnValues.size();j++)
+            {
+                if(compare(ovfBucket.clusteringKeyValues.get(j), row.get(currentTable.clusteringColumn)) == 0)
+                {
+                    ovfBucket.clusteringKeyValues.remove(j);
+                    ovfBucket.IndexColumnValues.remove(j);
+                    if(ovfBucket.clusteringKeyValues.size()==0)
+                    {
+                        deleteFile(bucket.overflow.get(i));
+                        bucket.overflow.remove(j);
+                        bucket.sizes.remove(j);
+
+                    }
+                    return;
+                }
+            }
+        }
+
+
+    }
+
+    public void validateSelection(SQLTerm[] sqlTerms, String[] arrayOperators)
+    {
+
     }
 
     @Override
     public Iterator selectFromTable(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException {
         // don't forget to validate
-        return null;
+        Table currentTable = readTable(sqlTerms[0].tableName);
+
+        HashSet<Object> resultSet = splitOR(currentTable, sqlTerms, arrayOperators);
+
+        return filterResults(resultSet,currentTable, sqlTerms);
     }
 
-    public HashSet<Object> splitOR (SQLTerm[] sqlTerms, String[] arrayOperators) {
+    public HashSet<Object> splitOR (Table currentTable, SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException {
         Vector<HashSet> result = new Vector<>();
         Vector<SQLTerm> temp = new Vector<>();
         HashSet<Object> x = new HashSet<>();
@@ -689,14 +837,16 @@ public class DBApp implements DBAppInterface {
                 l.add(arrayOperators[i]);
             }
             else{
-                x = splitXOR(temp, l);
+                x = splitXOR(currentTable, temp, l);
                 result.add(x);
                 temp=new Vector<>();
                 l = new Vector<>();
                 temp.add(sqlTerms[i+1]);
             }
         }
-        x = splitXOR(temp, l);
+
+
+        x = splitXOR(currentTable, temp, l);
         result.add(x);
 
         // evaluating the XOR
@@ -705,7 +855,7 @@ public class DBApp implements DBAppInterface {
         return finalResult;
     }
 
-    public HashSet<Object> splitXOR (Vector<SQLTerm> sqlTerms, Vector<String> arrayOperators){
+    public HashSet<Object> splitXOR (Table currentTable, Vector<SQLTerm> sqlTerms, Vector<String> arrayOperators) throws DBAppException {
         Vector<HashSet> result = new Vector<>();
         Vector<SQLTerm> temp = new Vector<>();
         HashSet<Object> x = new HashSet<>();
@@ -715,13 +865,21 @@ public class DBApp implements DBAppInterface {
         for (int i = 0 ; i<arrayOperators.size(); i++)
         {
             if (arrayOperators.get(i).equals("XOR")) {
-                x = AND(temp);
+                Grid g = getIndex(currentTable, temp);
+                if(g==null)
+                    x = linearSearch(currentTable, temp);
+                else
+                    x = searchIndex(g, temp);
                 result.add(x);
                 temp = new Vector<>();
             }
             temp.add(sqlTerms.get(i+1));
         }
-        x = AND(temp);
+        Grid g = getIndex(currentTable, temp);
+        if(g==null)
+            x = linearSearch(currentTable, temp);
+        else
+            x = searchIndex(g, temp);
         result.add(x);
 
         // evaluating the XOR
@@ -729,6 +887,39 @@ public class DBApp implements DBAppInterface {
         HashSet<Object> finalResult = XOR(result);
         return finalResult;
     }
+
+    public HashSet<Object> linearSearch(Table currentTable, Vector<SQLTerm> terms) throws DBAppException {
+        HashSet<Object> ans = new HashSet<>();
+        for(int i=0;i<currentTable.pageNames.size();i++)
+        {
+            Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, i);
+            loop: for(Hashtable<String, Object> row : currentPage)
+            {
+                for(SQLTerm term: terms)
+                {
+                    Object rowVal = row.get(term.columnName);
+                    int comVal = compare(rowVal, term.value);
+                    if(term.operator.equals("=")&& comVal!=0)
+                        continue loop;
+
+                    else if(term.operator.equals(">") && comVal<=0)
+                        continue loop;
+
+                    else if(term.operator.equals(">=") && comVal<0)
+                        continue loop;
+
+                    else if(term.operator.equals("<") && comVal>=0) continue loop;
+                    else if(term.operator.equals("<=") && comVal>0) continue loop;
+                    else if(term.operator.equals("!=") && comVal==0) continue loop;
+
+                }
+                ans.add(row.get(currentTable.clusteringColumn));
+            }
+        }
+        return ans;
+    }
+
+
 
     public HashSet<Object> OR (Vector<HashSet> sqlTerms){
         HashSet<Object> finalResult = sqlTerms.get(0);
@@ -797,7 +988,7 @@ public class DBApp implements DBAppInterface {
     }
 
 
-    public Iterator filterResults(HashSet<Object>clusteringKeys, Table currentTable) throws DBAppException {
+    public Iterator filterResults(HashSet<Object>clusteringKeys, Table currentTable, SQLTerm[] terms) throws DBAppException {
         Vector<Hashtable<String,Object>> ans = new Vector<>();
         HashMap<Integer,Vector<Object>> mapping = new HashMap<>();
         for(Object key: clusteringKeys)
@@ -816,6 +1007,24 @@ public class DBApp implements DBAppInterface {
             {
                 int idx = binarySearchPage(key, currentPage, currentTable);
                 Hashtable<String, Object> row = currentPage.get(idx);
+                for(SQLTerm term: terms)
+                {
+                    Object rowVal = row.get(term.columnName);
+                    int comVal = compare(rowVal, term.value);
+                    if(term.operator.equals("=")&& comVal!=0)
+                        continue loop;
+
+                    else if(term.operator.equals(">") && comVal<=0)
+                        continue loop;
+
+                    else if(term.operator.equals(">=") && comVal<0)
+                        continue loop;
+
+                    else if(term.operator.equals("<") && comVal>=0) continue loop;
+                    else if(term.operator.equals("<=") && comVal>0) continue loop;
+                    else if(term.operator.equals("!=") && comVal==0) continue loop;
+
+                }
                 ans.add(row);
             }
         }
