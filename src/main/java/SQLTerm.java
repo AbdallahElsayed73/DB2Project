@@ -8,7 +8,6 @@ public class SQLTerm {
     {
 
     }
-
     public SQLTerm(String _strTableName,String _strColumnName, String _strOperator, Object _objValue)
     {
         this._strTableName = _strTableName;

@@ -3,9 +3,11 @@ import au.com.bytecode.opencsv.CSVWriter;
 import org.junit.validator.ValidateWith;
 
 import java.io.*;
+import java.math.RoundingMode;
 import java.nio.BufferUnderflowException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
@@ -110,6 +112,7 @@ public class DBApp implements DBAppInterface {
 
     }
 
+    static Vector<Integer> stringIndex;
     @Override
     public void createIndex(String tableName, String[] columnNames) throws DBAppException {
         HashSet<String> hs = new HashSet<>();
@@ -123,10 +126,13 @@ public class DBApp implements DBAppInterface {
         HashMap<String, Pair[]> colRanges = new HashMap<>();
         Iterator<String> it = colMinMax.keySet().iterator();
         int numBuckets = 1;
-        while (it.hasNext()) {
-            String key = it.next();
+        stringIndex = new Vector<>();
+        for(String key: columnNames) {
+//            String key = it.next();
             Pair val = colMinMax.get(key);
             Pair[] ranges = splitRange(val.min, val.max);
+            System.out.println(key);
+            System.out.println(Arrays.toString(ranges));
             colRanges.put(key, ranges);
             numBuckets*= ranges.length;
         }
@@ -140,6 +146,7 @@ public class DBApp implements DBAppInterface {
             buckets[i] = new Bucket(i);
         bucketIndex=0;
         Grid index = new Grid(ranges[0],columnNames[0]);
+        index.charIndex = stringIndex.get(0);
         createGrid(tableName, currentTable.indices.size(), index, ranges, 1, columnNames);
 
 
@@ -160,7 +167,7 @@ public class DBApp implements DBAppInterface {
             divideBucket(b, tableName, currentTable.indices.size());
         currentTable.indices.add(columnNames);
         writeTable(currentTable);
-        writeGrid(index, tableName+"_index_"+currentTable.indices.size());
+        writeGrid(index, tableName+"_index_"+(currentTable.indices.size()-1));
 
 
     }
@@ -266,9 +273,30 @@ public class DBApp implements DBAppInterface {
         int min =0, max = index.ranges.length-1;
         while(min<=max)
         {
+
             int mid = (min+max)>>1;
-            int compareMin = compare(row.get(index.columnName), index.ranges[mid].min);
-            int compareMax = compare(index.ranges[mid].max, row.get(index.columnName));
+            int compareMin, compareMax;
+//            System.out.println(index.ranges[mid].min+" "+" "+row.get(index.columnName)+" "+index.ranges[mid].max);
+            if(index.charIndex!=-1) {
+                if(index.charIndex>=((String)(row.get(index.columnName))).length())
+                {
+                    if(index.references[mid] instanceof String) {
+                        String[] parse = ((String) index.references[0]).split("_");
+                        return Integer.parseInt(parse[parse.length - 1]);
+                    }
+                    return getBucket( (Grid)index.references[0], row);
+                }
+                String rowString = (String)row.get(index.columnName);
+                compareMin = compare(rowString.charAt(index.charIndex)+"", ((String)index.ranges[mid].min).charAt(index.charIndex)+"");
+                compareMax = compare(((String)index.ranges[mid].max).charAt(index.charIndex)+"", rowString.charAt(index.charIndex)+"");
+
+            }
+            else
+            {
+                compareMin = compare(row.get(index.columnName), index.ranges[mid].min);
+                compareMax = compare(index.ranges[mid].max, row.get(index.columnName));
+            }
+//            System.out.println(compareMin+" "+ compareMax);
             if(compareMin>=0 && compareMax>=0)
             {
                 if(index.references[mid] instanceof String) {
@@ -305,6 +333,7 @@ public class DBApp implements DBAppInterface {
         {
             Grid g2=new Grid(ranges[j],columnNames[j]);
             g.references[i]=g2;
+            g2.charIndex = stringIndex.get(j);
             createGrid(tableName, indexNum, g2,ranges,j+1,columnNames);
         }
 
@@ -321,7 +350,9 @@ public class DBApp implements DBAppInterface {
             }
             return false;
         }
-        return true;
+
+
+        return a1.length==a2.length;
     }
 
     public HashMap<String, Pair> getMinMax(String tableName, HashSet<String> columnNames) throws DBAppException {
@@ -408,7 +439,7 @@ public class DBApp implements DBAppInterface {
                 Grid g = readGrid(currentTable.name,i);
                 int bucketNo= getBucket(g,colNameValue);
                 Bucket b = readBucket(tableName+ "_index_"+i+"_bucket_"+bucketNo);
-
+                insertIntoBucket(b, currentTable, colNameValue, i);
             }
             updatePageInfo(currentTable, currentPage, pageIndex);
 
@@ -420,13 +451,17 @@ public class DBApp implements DBAppInterface {
     }
 
 
-    public void insertIntoBucket(Bucket b, Object clusteringKey,String tableName,int indexNo) throws DBAppException
+    public void insertIntoBucket(Bucket b, Table currentTable, Hashtable<String, Object>row,int indexNo) throws DBAppException
     {
-        String name = tableName+"_index_"+indexNo+"_bucket_"+b.bucketNumber;
+        String name = currentTable.name+"_index_"+indexNo+"_bucket_"+b.bucketNumber;
+        Hashtable<String, Object> indexColVals= new Hashtable<>();
+        for(String col: currentTable.indices.get(indexNo))
+            indexColVals.put(col, row.get(col));
         if(b.clusteringKeyValues.size()<maxIndexBucket)
         {
-            b.clusteringKeyValues.add(clusteringKey);
+            b.clusteringKeyValues.add(row.get(currentTable.clusteringColumn));
 
+            b.IndexColumnValues.add(indexColVals);
             writeBucket(b,name);
             return;
         }
@@ -436,7 +471,8 @@ public class DBApp implements DBAppInterface {
             {
 
                 Bucket ovf = readBucket(b.overflow.get(i));
-                ovf.clusteringKeyValues.add(clusteringKey);
+                ovf.clusteringKeyValues.add(currentTable.clusteringColumn);
+                ovf.IndexColumnValues.add(indexColVals);
                 b.sizes.set(i, b.sizes.get(i)+1);
                 writeBucket(ovf, b.overflow.get(i));
                 writeBucket(b,name);
@@ -444,7 +480,8 @@ public class DBApp implements DBAppInterface {
             }
         }
         Bucket ovf = new Bucket(b.bucketNumber);
-        ovf.clusteringKeyValues.add(clusteringKey);
+        ovf.clusteringKeyValues.add(currentTable.clusteringColumn);
+        ovf.IndexColumnValues.add(indexColVals);
         b.sizes.add(1);
         String ovfName = name+"."+b.overflow.size();
         b.overflow.add(ovfName);
@@ -530,7 +567,7 @@ public class DBApp implements DBAppInterface {
             //    ans = ((String) a).ltryength() > ((String)b).length()? 1:-1;
 
         } else {
-            ans = -1 * ((Date) a).compareTo((Date) b);
+            ans = ((Date) a).compareTo((Date) b);
         }
         return ans;
     }
@@ -591,12 +628,29 @@ public class DBApp implements DBAppInterface {
         }
         Vector<Hashtable<String, Object>> currentPage = readPage(currentTable, pageNumber);
         int ind = binarySearchPage(clust, currentPage, currentTable);
+        Hashtable<String, Object> deletedRow = currentPage.get(ind);
         if (compare(currentPage.get(ind).get(clusteringColumn), (clust)) == 0) {
             Iterator<String> it = columnNameValue.keySet().iterator();
             while (it.hasNext()) {
                 String key = it.next();
                 Object val = columnNameValue.get(key);
                 currentPage.get(ind).put(key, val);
+            }
+            Hashtable<String, Object> updatedRow = currentPage.get(ind);
+           loop: for(int i=0;i<currentTable.indices.size();i++)
+            {
+                for(String col: currentTable.indices.get(i))
+                {
+                    if(columnNameValue.containsKey(col))
+                    {
+                        Grid g = readGrid(tableName, i);
+                        deleteRowFromIndex(currentTable, g, i, deletedRow);
+                        int bucketNum = getBucket(g, updatedRow);
+                        Bucket b = readBucket(tableName+"_index_"+i+"_bucket_"+bucketNum);
+                        insertIntoBucket(b,currentTable,updatedRow,i);
+                        continue loop;
+                    }
+                }
             }
             System.out.println("1 row(s) affected");
             updatePageInfo(currentTable, currentPage, pageNumber);
@@ -738,7 +792,7 @@ public class DBApp implements DBAppInterface {
 
         }
 
-        System.out.println(deleted.size()+ "row(s) affected");
+        System.out.println(deleted.size()+ " row(s) affected");
         for(int i=0;i<currentTable.indices.size();i++)
         {
             Grid g = readGrid(currentTable.name, i);
@@ -779,9 +833,9 @@ public class DBApp implements DBAppInterface {
                         bucket.sizes.remove(bucket.sizes.size() - 1);
                         deleteFile(ovfName);
                     }
-                    writeBucket(bucket,bucketName);
-                    return;
                 }
+                writeBucket(bucket,bucketName);
+                return;
             }
         }
 
@@ -934,7 +988,7 @@ public class DBApp implements DBAppInterface {
             HashSet<Object> key = it.next();
             Iterator<Object> it1 = key.iterator();
             while (it1.hasNext()) {
-                finalResult.add(it.next());
+                finalResult.add(it1.next());
             }
         }
         return finalResult;
@@ -974,7 +1028,7 @@ public class DBApp implements DBAppInterface {
           String[] index = currentTable.indices.get(i);
           int matches=0;
           for(int j=0;j<index.length;j++)
-              if(cols.contains(index[i]))matches++;
+              if(cols.contains(index[j]))matches++;
           if(matches>max)
           {
               max = matches;
@@ -1336,18 +1390,25 @@ public class DBApp implements DBAppInterface {
             for (int i = 0; i < size; i++) {
                 ans[i] = new Pair(minInt + i * inc, minInt + (i + 1) * inc - 1);
             }
+            stringIndex.add(-1);
 
 
         } else if (min instanceof Double) {
+            DecimalFormat df = new DecimalFormat("#.######");
+            df.setRoundingMode(RoundingMode.FLOOR);
             double minDl = (double) min, maxDl = (double) max;
             double range = maxDl - minDl;
             double inc = range / 10.0;
             ans = new Pair[10];
             for (int i = 0; i <= 9; i++) {
-                ans[i] = new Pair(minDl + i * inc, minDl + (i + 1) * inc - 1e-6);
+//                double tmp1 = Double.parseDouble(df.format());
+//                double tmp2 = Double.parseDouble(df.format(minDl + (i+1) * inc-1e-6));
+                double tmp1 = Math.floor((minDl + i * inc)*1000000)/1000000;
+                double tmp2 = Math.floor((minDl + (i+1) * inc-1e-6)*1000000)/1000000;
+                ans[i] = new Pair(tmp1, tmp2);
             }
-            ans[9].max = maxDl;
-
+            ans[9].max = Math.floor(maxDl*1000000)/1000000;
+            stringIndex.add(-1);
 
         } else if (min instanceof String) {
 
@@ -1377,9 +1438,12 @@ public class DBApp implements DBAppInterface {
             int size = (int) Math.ceil(range * 1.0 / inc);
             ans = new Pair[size];
             for (int i = 0; i < size; i++) {
-                ans[i] = new Pair(tmp + (char) (begin + (i * inc)), tmp + (char) (begin + ((i + 1) * inc - 1)));
+                if(i==0 && index == minString.length())
+                    ans[i] = new Pair(minString, tmp + (char) (begin + ((i + 1) * inc - 1)));
+                else
+                    ans[i] = new Pair(tmp + (char) (begin + (i * inc)), tmp + (char) (begin + ((i + 1) * inc - 1)));
             }
-
+            stringIndex.add(index);
 
         } else {
             Date minDate = (Date) min;
@@ -1389,7 +1453,6 @@ public class DBApp implements DBAppInterface {
             long range = maxLD.toEpochDay() - minLD.toEpochDay() + 1;
             long inc = (long) Math.ceil(range / 10.0);
             int size = (int) (Math.ceil(range * 1.0 / inc));
-            System.out.println(range + " " + inc + " " + size);
 
             ans = new Pair[size];
             for (int i = 0; i < size; i++) {
@@ -1398,6 +1461,7 @@ public class DBApp implements DBAppInterface {
                 ans[i] = new Pair(new Date(tmpMin.getYear() - 1900, tmpMin.getMonthValue() - 1, tmpMin.getDayOfMonth()),
                         new Date(tmpMax.getYear() - 1900, tmpMax.getMonthValue() - 1, tmpMax.getDayOfMonth()));
             }
+            stringIndex.add(-1);
 
 
         }
@@ -1407,19 +1471,11 @@ public class DBApp implements DBAppInterface {
 
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
-//        DBApp app = new DBApp();
-//        Grid g=new Grid(new Pair[]{new Pair(1,3),new Pair(4,6),new Pair(7,9)},"Omar");
-//        Pair[][] ranges={{new Pair(1,3),new Pair(4,6),new Pair(7,9)},{new Pair(3,5),new Pair(6,8),new Pair(9,11)},{new Pair(2,5),new Pair(6,9),new Pair(10,13)}};
-//        String []colnames={"Omar","Abdallah","Samir"};
-//        app.createGrid(g,ranges,1,colnames);
-//        for (int i=0;i<3;i++)
-//        {
-//            for(int j=0;j<3;j++)
-//            {
-//                Grid zeft=(Grid)((Grid)(g.references[i])).references[j];
-//                System.out.println(Arrays.toString(zeft.references));
-//            }
-//        }
+        DBApp app = new DBApp();
+
+        Table currentTable = app.readTable("students");
+        for(String[] index: currentTable.indices)
+            System.out.println(Arrays.toString(index));
 
 
     }
