@@ -484,8 +484,6 @@ public class DBApp implements DBAppInterface {
             int mid = (lo + hi) >> 1;
             Object V = currentPage.get(mid).get(currentTable.clusteringColumn);
             int ans = compare(V, clusterValue);
-//            if(ans==0)
-//                throw new DBAppException("The given value already exists");
             if (ans >= 0) {
                 ind = mid;
                 hi = mid - 1;
@@ -616,7 +614,11 @@ public class DBApp implements DBAppInterface {
         {
             String columnName = itr.next();
             Object val = columnNameValue.get(columnName);
-            SQLTerm term = new SQLTerm(tableName, columnName, "=", val);
+            SQLTerm term = new SQLTerm();
+            term._strTableName = tableName;
+            term._strColumnName= columnName;
+            term._strOperator = "=";
+            term._objValue = val;
             terms.add(term);
         }
         return terms;
@@ -709,20 +711,20 @@ public class DBApp implements DBAppInterface {
                         Hashtable<String, Object> row = currentPage.get(idx);
                         for(SQLTerm term: terms)
                         {
-                            Object rowVal = row.get(term.columnName);
-                            int comVal = compare(rowVal, term.value);
-                            if(term.operator.equals("=")&& comVal!=0)
+                            Object rowVal = row.get(term._strColumnName);
+                            int comVal = compare(rowVal, term._objValue);
+                            if(term._strOperator.equals("=")&& comVal!=0)
                                 continue loop;
 
-                            else if(term.operator.equals(">") && comVal<=0)
+                            else if(term._strOperator.equals(">") && comVal<=0)
                                 continue loop;
 
-                            else if(term.operator.equals(">=") && comVal<0)
+                            else if(term._strOperator.equals(">=") && comVal<0)
                                 continue loop;
 
-                            else if(term.operator.equals("<") && comVal>=0) continue loop;
-                            else if(term.operator.equals("<=") && comVal>0) continue loop;
-                            else if(term.operator.equals("!=") && comVal==0) continue loop;
+                            else if(term._strOperator.equals("<") && comVal>=0) continue loop;
+                            else if(term._strOperator.equals("<=") && comVal>0) continue loop;
+                            else if(term._strOperator.equals("!=") && comVal==0) continue loop;
 
                         }
                         deleted.add(currentPage.get(idx));
@@ -815,7 +817,7 @@ public class DBApp implements DBAppInterface {
     @Override
     public Iterator selectFromTable(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException {
         // don't forget to validate
-        Table currentTable = readTable(sqlTerms[0].tableName);
+        Table currentTable = readTable(sqlTerms[0]._strTableName);
 
         HashSet<Object> resultSet = splitOR(currentTable, sqlTerms, arrayOperators);
 
@@ -897,20 +899,20 @@ public class DBApp implements DBAppInterface {
             {
                 for(SQLTerm term: terms)
                 {
-                    Object rowVal = row.get(term.columnName);
-                    int comVal = compare(rowVal, term.value);
-                    if(term.operator.equals("=")&& comVal!=0)
+                    Object rowVal = row.get(term._strColumnName);
+                    int comVal = compare(rowVal, term._objValue);
+                    if(term._strOperator.equals("=")&& comVal!=0)
                         continue loop;
 
-                    else if(term.operator.equals(">") && comVal<=0)
+                    else if(term._strOperator.equals(">") && comVal<=0)
                         continue loop;
 
-                    else if(term.operator.equals(">=") && comVal<0)
+                    else if(term._strOperator.equals(">=") && comVal<0)
                         continue loop;
 
-                    else if(term.operator.equals("<") && comVal>=0) continue loop;
-                    else if(term.operator.equals("<=") && comVal>0) continue loop;
-                    else if(term.operator.equals("!=") && comVal==0) continue loop;
+                    else if(term._strOperator.equals("<") && comVal>=0) continue loop;
+                    else if(term._strOperator.equals("<=") && comVal>0) continue loop;
+                    else if(term._strOperator.equals("!=") && comVal==0) continue loop;
 
                 }
                 ans.add(row.get(currentTable.clusteringColumn));
@@ -963,8 +965,8 @@ public class DBApp implements DBAppInterface {
       HashSet<String> cols = new HashSet<>();
       for(SQLTerm s: terms)
       {
-          if(!s.operator.equals("!="))
-             cols.add(s.columnName);
+          if(!s._strOperator.equals("!="))
+             cols.add(s._strColumnName);
       }
       int ans=-1, max=0;
       for(int i=0;i<currentTable.indices.size();i++)
@@ -1009,20 +1011,20 @@ public class DBApp implements DBAppInterface {
                 Hashtable<String, Object> row = currentPage.get(idx);
                 for(SQLTerm term: terms)
                 {
-                    Object rowVal = row.get(term.columnName);
-                    int comVal = compare(rowVal, term.value);
-                    if(term.operator.equals("=")&& comVal!=0)
+                    Object rowVal = row.get(term._strColumnName);
+                    int comVal = compare(rowVal, term._objValue);
+                    if(term._strOperator.equals("=")&& comVal!=0)
                         continue loop;
 
-                    else if(term.operator.equals(">") && comVal<=0)
+                    else if(term._strOperator.equals(">") && comVal<=0)
                         continue loop;
 
-                    else if(term.operator.equals(">=") && comVal<0)
+                    else if(term._strOperator.equals(">=") && comVal<0)
                         continue loop;
 
-                    else if(term.operator.equals("<") && comVal>=0) continue loop;
-                    else if(term.operator.equals("<=") && comVal>0) continue loop;
-                    else if(term.operator.equals("!=") && comVal==0) continue loop;
+                    else if(term._strOperator.equals("<") && comVal>=0) continue loop;
+                    else if(term._strOperator.equals("<=") && comVal>0) continue loop;
+                    else if(term._strOperator.equals("!=") && comVal==0) continue loop;
 
                 }
                 ans.add(row);
@@ -1038,21 +1040,21 @@ public class DBApp implements DBAppInterface {
         {
             for(SQLTerm term: terms)
             {
-                if(term.columnName.equals(index.columnName))
+                if(term._strColumnName.equals(index.columnName))
                 {
-                    int greaterThanMin = compare(term.value, index.ranges[i].min);
-                    int lessThanMAx = compare(index.ranges[i].max, term.value);
-                    if(term.operator.equals("="))
+                    int greaterThanMin = compare(term._objValue, index.ranges[i].min);
+                    int lessThanMAx = compare(index.ranges[i].max, term._objValue);
+                    if(term._strOperator.equals("="))
                         if(greaterThanMin<0 || lessThanMAx<0)continue loop;
 
-                    else if(term.operator.equals(">") && lessThanMAx<=0)
+                    else if(term._strOperator.equals(">") && lessThanMAx<=0)
                         continue loop;
 
-                    else if(term.operator.equals(">=") && lessThanMAx<0)
+                    else if(term._strOperator.equals(">=") && lessThanMAx<0)
                         continue loop;
 
-                    else if(term.operator.equals("<") && greaterThanMin<=0) continue loop;
-                    else if(term.operator.equals("<=") && greaterThanMin<0) continue loop;
+                    else if(term._strOperator.equals("<") && greaterThanMin<=0) continue loop;
+                    else if(term._strOperator.equals("<=") && greaterThanMin<0) continue loop;
                 }
             }
             if(index.references[i] instanceof Grid)
@@ -1069,17 +1071,17 @@ public class DBApp implements DBAppInterface {
                 {
                     for(SQLTerm term : terms)
                     {
-                        if(b.IndexColumnValues.get(k).containsKey(term.columnName)) {
+                        if(b.IndexColumnValues.get(k).containsKey(term._strColumnName)) {
 
 
-                            Object value = b.IndexColumnValues.get(k).get(term.columnName);
-                            int compVal = compare(value, term.value);
-                            if (term.operator.equals("=") && compVal != 0) continue loop2;
-                            else if (term.operator.equals("!=") && compVal == 0) continue loop2;
-                            else if (term.operator.equals(">") && compVal <= 0) continue loop2;
-                            else if (term.operator.equals(">=") && compVal < 0) continue loop2;
-                            else if (term.operator.equals("<") && compVal >= 0) continue loop2;
-                            else if (term.operator.equals("<=") && compVal > 0) continue loop2;
+                            Object value = b.IndexColumnValues.get(k).get(term._strColumnName);
+                            int compVal = compare(value, term._objValue);
+                            if (term._strOperator.equals("=") && compVal != 0) continue loop2;
+                            else if (term._strOperator.equals("!=") && compVal == 0) continue loop2;
+                            else if (term._strOperator.equals(">") && compVal <= 0) continue loop2;
+                            else if (term._strOperator.equals(">=") && compVal < 0) continue loop2;
+                            else if (term._strOperator.equals("<") && compVal >= 0) continue loop2;
+                            else if (term._strOperator.equals("<=") && compVal > 0) continue loop2;
                         }
 
                     }
@@ -1093,17 +1095,17 @@ public class DBApp implements DBAppInterface {
                     {
                         for(SQLTerm term : terms)
                         {
-                            if(ovf.IndexColumnValues.get(k).containsKey(term.columnName)) {
+                            if(ovf.IndexColumnValues.get(k).containsKey(term._strColumnName)) {
 
 
-                                Object value = ovf.IndexColumnValues.get(k).get(term.columnName);
-                                int compVal = compare(value, term.value);
-                                if (term.operator.equals("=") && compVal != 0) continue loop2;
-                                else if (term.operator.equals("!=") && compVal == 0) continue loop2;
-                                else if (term.operator.equals(">") && compVal <= 0) continue loop2;
-                                else if (term.operator.equals(">=") && compVal < 0) continue loop2;
-                                else if (term.operator.equals("<") && compVal >= 0) continue loop2;
-                                else if (term.operator.equals("<=") && compVal > 0) continue loop2;
+                                Object value = ovf.IndexColumnValues.get(k).get(term._strColumnName);
+                                int compVal = compare(value, term._objValue);
+                                if (term._strOperator.equals("=") && compVal != 0) continue loop2;
+                                else if (term._strOperator.equals("!=") && compVal == 0) continue loop2;
+                                else if (term._strOperator.equals(">") && compVal <= 0) continue loop2;
+                                else if (term._strOperator.equals(">=") && compVal < 0) continue loop2;
+                                else if (term._strOperator.equals("<") && compVal >= 0) continue loop2;
+                                else if (term._strOperator.equals("<=") && compVal > 0) continue loop2;
                             }
 
                         }
