@@ -199,8 +199,6 @@ public class Milestone2Tests {
         int c = 0;
         int finalLine = 1;
         Hashtable<String, Object> row = new Hashtable();
-
-
         while ((record = studentsTable.readLine()) != null && c <= finalLine) {
             if (c == finalLine) {
                 String[] fields = record.split(",");
