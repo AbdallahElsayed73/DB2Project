@@ -12,5 +12,12 @@
 "transcripts","date_passed","java.util.Date","false","false","1990-01-01","2020-12-31"
 "transcripts","course_name","java.lang.String","false","false","AAAAAA","zzzzzz"
 "transcripts","student_id","java.lang.String","false","false","43-0000","99-9999"
+<<<<<<< Updated upstream
 "pcs","pc_id","java.lang.Integer","true","true","0","20000"
 "pcs","student_id","java.lang.String","false","true","43-0000","99-9999"
+=======
+"pcs","pc_id","java.lang.Integer","true","false","0","20000"
+"pcs","student_id","java.lang.String","false","false","43-0000","99-9999"
+"nada","age","int","false","false","12","22"
+"nada","name","char(4)","true","false","'AAA'","'ZZZ'"
+>>>>>>> Stashed changes

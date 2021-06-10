@@ -59,7 +59,7 @@ public class Milestone1Tests {
             throw new Exception("`metadata.csv` in Resources folder does not exist");
         }
 
-        PrintWriter writer = new PrintWriter(metaFile);
+        PrintWriter writer = new  PrintWriter(metaFile);
         writer.write("");
         writer.close();
     }
