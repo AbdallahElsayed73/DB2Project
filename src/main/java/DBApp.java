@@ -914,7 +914,7 @@ public class DBApp implements DBAppInterface {
                 throw new DBAppException("This expression is invalid");
             for(String op: arrayOperators){
                 op=op.toLowerCase();
-                if((!op.equals("and"))||(!op.equals("or"))||(!op.equals("xor")))
+                if((!op.equals("and"))&&(!op.equals("or"))&&(!op.equals("xor")))
                     throw new DBAppException("unsupported operator: "+op+". operators must be AND,XOR or OR.");
             }
             CSVReader reader = new CSVReader(new FileReader("src/main/resources/metadata.csv"), ',', '"', 1);
@@ -925,7 +925,7 @@ public class DBApp implements DBAppInterface {
             operators.add("="); operators.add("!="); operators.add(">="); operators.add("<="); operators.add("<"); operators.add(">");
             while(record!=null)
             {
-                if(record[0]==sqlTerms[0]._strTableName)
+                if(record[0].equals(sqlTerms[0]._strTableName))
                 {
                     types.put(record[1],record[2]);
                     fields.add(record[1]);
@@ -935,7 +935,7 @@ public class DBApp implements DBAppInterface {
             if(types.isEmpty())
                 throw new DBAppException("Table: "+sqlTerms[0]._strTableName+" is not found");
             for(int i=0;i<sqlTerms.length;i++){
-                if(sqlTerms[0]._strTableName!=sqlTerms[i]._strTableName)
+                if(!sqlTerms[0]._strTableName.equals(sqlTerms[i]._strTableName))
                     throw new DBAppException("Unconsistent table names: "+sqlTerms[0]._strTableName+","+sqlTerms[i]._strTableName);
                 if(!fields.contains(sqlTerms[i]._strColumnName))
                     throw new DBAppException("Invalid column name '"+sqlTerms[i]._strColumnName+"'.");

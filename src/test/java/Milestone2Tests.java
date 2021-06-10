@@ -1,17 +1,9 @@
 import org.junit.jupiter.api.*;
 
-<<<<<<< Updated upstream
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-=======
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.PrintWriter;
-import java.util.Arrays;
->>>>>>> Stashed changes
 import java.util.Date;
 import java.util.Hashtable;
 import java.util.Iterator;
@@ -443,6 +435,7 @@ public class Milestone2Tests {
             double gpa = Double.parseDouble(fields[4].trim());
 
             row.put("gpa", gpa);
+
             dbApp.insertIntoTable("students", row);
             row.clear();
             if (limit != -1) {
@@ -451,24 +444,4 @@ public class Milestone2Tests {
         }
         studentsTable.close();
     }
-<<<<<<< Updated upstream
 }
-=======
-
-    public static  void main(String []args) throws Exception {
-
-        String cluster = "47-1336";
-        DBApp dbApp = new DBApp();
-        dbApp.init();
-        SQLTerm[] sql=new SQLTerm[]{new SQLTerm("students","id","=","47-1336")};
-        Iterator it=dbApp.selectFromTable(sql,new String[]{});
-        Table t=dbApp.readTable("students");
-        while (it.hasNext())
-        {
-            System.out.println(it.next());
-        }
-
-    }
-
-}
->>>>>>> Stashed changes
