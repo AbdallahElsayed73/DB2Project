@@ -113,7 +113,46 @@ public class DBApp implements DBAppInterface {
     }
 
     static Vector<Integer> stringIndex;
-    @Override
+
+    public void editMetaDataIndex(String tableName, String[] columnNames) throws DBAppException {
+        try{
+            Vector<String[]> data = new Vector<>();
+            CSVReader reader = new CSVReader(new FileReader("src/main/resources/metadata.csv"), ',', '"', 0);
+
+            String[] record;
+            loop: while ((record = reader.readNext()) != null) {
+                if (record != null) {
+                    if (record[0].equals(tableName)) {
+                        for(String entry: columnNames)
+                        {
+                            if(entry.equals(record[1]))
+                            {
+                                record[4] = "true";
+                                data.add(record);
+                                continue loop;
+                            }
+                        }
+                        data.add(record);
+
+
+                    }
+                    else{
+                        data.add(record);
+
+                    }
+
+                }
+            }
+            String csv = "src/main/resources/metadata.csv";
+            CSVWriter writer = new CSVWriter(new FileWriter(csv, false));
+            for(String[] entry: data)
+                writer.writeNext(entry);
+            writer.close();
+        }catch (Exception e){
+            throw new DBAppException(e.getMessage());
+        }
+
+    }
     public void createIndex(String tableName, String[] columnNames) throws DBAppException {
         HashSet<String> hs = new HashSet<>();
         for (String name : columnNames)
@@ -168,7 +207,7 @@ public class DBApp implements DBAppInterface {
         currentTable.indices.add(columnNames);
         writeTable(currentTable);
         writeGrid(index, tableName+"_index_"+(currentTable.indices.size()-1));
-
+        editMetaDataIndex(tableName, columnNames);
 
     }
     public Grid readGrid(String tableName,int indexNo) throws DBAppException
@@ -270,6 +309,14 @@ public class DBApp implements DBAppInterface {
 
     public int getBucket( Grid index, Hashtable<String, Object> row)
     {
+        if(!row.containsKey(index.columnName)){
+            int mid=0;
+            if(index.references[mid] instanceof String) {
+                String[] parse = ((String) index.references[mid]).split("_");
+                return Integer.parseInt(parse[parse.length - 1]);
+            }
+            return getBucket( (Grid)index.references[mid], row);
+        }
         int min =0, max = index.ranges.length-1;
         while(min<=max)
         {
@@ -863,14 +910,75 @@ public class DBApp implements DBAppInterface {
 
     }
 
-    public void validateSelection(SQLTerm[] sqlTerms, String[] arrayOperators)
-    {
+    public void validateSelection(SQLTerm[] sqlTerms, String[] arrayOperators){
+        try{
+            if(sqlTerms.length==0)
+                throw new DBAppException("SQL terms array is empty");
+            if(arrayOperators.length==0&&sqlTerms.length>1)
+                throw new DBAppException("Operators array is empty");
+            if(sqlTerms.length-arrayOperators.length!=1)
+                throw new DBAppException("This expression is invalid");
+            for(String op: arrayOperators){
+                op=op.toLowerCase();
+                if((!op.equals("and"))||(!op.equals("or"))||(!op.equals("xor")))
+                    throw new DBAppException("unsupported operator: "+op+". operators must be AND,XOR or OR.");
+            }
+            CSVReader reader = new CSVReader(new FileReader("src/main/resources/metadata.csv"), ',', '"', 1);
+            String[] record=reader.readNext();
+            HashMap<String,String>types=new HashMap<>();
+            HashSet<String>fields=new HashSet<>();
+            HashSet<String>operators=new HashSet<>();
+            operators.add("="); operators.add("!="); operators.add(">="); operators.add("<="); operators.add("<"); operators.add(">");
+            while(record!=null)
+            {
+                if(record[0]==sqlTerms[0]._strTableName)
+                {
+                    types.put(record[1],record[2]);
+                    fields.add(record[1]);
+                }
+                record = reader.readNext();
+            }
+            if(types.isEmpty())
+                throw new DBAppException("Table: "+sqlTerms[0]._strTableName+" is not found");
+            for(int i=0;i<sqlTerms.length;i++){
+                if(sqlTerms[0]._strTableName!=sqlTerms[i]._strTableName)
+                    throw new DBAppException("Unconsistent table names: "+sqlTerms[0]._strTableName+","+sqlTerms[i]._strTableName);
+                if(!fields.contains(sqlTerms[i]._strColumnName))
+                    throw new DBAppException("Invalid column name '"+sqlTerms[i]._strColumnName+"'.");
+                if(!isCompatible(types.get(sqlTerms[i]._strColumnName),sqlTerms[i]._objValue))
+                    throw new DBAppException("Incompatible data type with "+sqlTerms[i]._strColumnName);
+                if(!operators.contains(sqlTerms[i]._strOperator))
+                    throw new DBAppException("Unsupported operator: "+sqlTerms[i]._strOperator);
+            }
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
 
+    }
+    public boolean isCompatible(String type, Object val){
+        if(val instanceof Integer) {
+            if(!type.equals("java.lang.Integer"))
+                return false;
+        }
+        else if(val instanceof String) {
+            if(!type.equals("java.lang.String"))
+                return false;
+        }
+        else if(val instanceof Double) {
+            if(!type.equals("java.lang.Double"))
+               return false;
+        }
+       else {
+            if(!type.equals("java.util.Date"))
+              return false;
+        }
+        return true;
     }
 
     @Override
     public Iterator selectFromTable(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException {
-        // don't forget to validate
+        validateSelection(sqlTerms,arrayOperators);
         Table currentTable = readTable(sqlTerms[0]._strTableName);
 
         HashSet<Object> resultSet = splitOR(currentTable, sqlTerms, arrayOperators);
@@ -1098,6 +1206,11 @@ public class DBApp implements DBAppInterface {
                 {
                     int greaterThanMin = compare(term._objValue, index.ranges[i].min);
                     int lessThanMAx = compare(index.ranges[i].max, term._objValue);
+                    if(index.charIndex!=-1) {
+                        String rowString = (String)term._objValue;
+                        greaterThanMin = compare(rowString.charAt(index.charIndex)+"", ((String)index.ranges[i].min).charAt(index.charIndex)+"");
+                        lessThanMAx = compare(((String)index.ranges[i].max).charAt(index.charIndex)+"", rowString.charAt(index.charIndex)+"");
+                    }
                     if(term._strOperator.equals("="))
                         if(greaterThanMin<0 || lessThanMAx<0)continue loop;
 
@@ -1171,6 +1284,7 @@ public class DBApp implements DBAppInterface {
 
 
         }
+        System.out.println(ans);
         return ans;
     }
 
@@ -1471,12 +1585,11 @@ public class DBApp implements DBAppInterface {
 
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
-        DBApp app = new DBApp();
-
-        Table currentTable = app.readTable("students");
-        for(String[] index: currentTable.indices)
-            System.out.println(Arrays.toString(index));
-
+        DBApp dbApp = new DBApp();
+        dbApp.init();
+        String table = "pcs";
+        String[] index = {"student_id"};
+        dbApp.createIndex(table, index);
 
     }
 }
