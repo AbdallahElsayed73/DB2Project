@@ -88,9 +88,7 @@ public class Milestone1Tests {
         }
 
 //        System.out.println(files);
-        for (String file : files) {
-            Files.delete(Paths.get(file));
-        }
+
     }
 
     @Test
