@@ -1820,7 +1820,7 @@ public class DBApp implements DBAppInterface {
 //                "age int check(age between 12 and 22))"));
 
 //        app.parseSQL(new StringBuffer("create table tname (id char check(id between 1 and 6 ),name char primary key check (name between 'nnn' and 'zzz'))"));
-//        app.parseSQL(new StringBuffer("create table t2name (id char check(id between 1 and 6 ),name int primary key check (name between 'nnn' and 'zzz'))"));
+        app.parseSQL(new StringBuffer("create table t2name (id char check(id between 1 and 6 ),name int primary key check (name between 'nnn' and 'zzz'))"));
 
 
 
