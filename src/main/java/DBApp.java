@@ -1653,20 +1653,19 @@ public class DBApp implements DBAppInterface {
 
     @Override
     public Iterator parseSQL(StringBuffer strbufSQL) throws DBAppException {
+        try{
         CharStream input = (CharStream) CharStreams.fromString(String.valueOf(strbufSQL));
         SQLiteLexer mySqlLexer = new SQLiteLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(mySqlLexer);
         SQLiteParser parser = new SQLiteParser(tokens);
-
+        parser.removeErrorListeners();
+        parser.addErrorListener(ThrowingErrorListener.INSTANCE);
         ParseTree tree = parser.parse();
-//        System.out.println(tree.toStringTree(parser));
         ParserListener listener = new ParserListener();
         ParserListener.expValues = new Vector<>();
         ParserListener.operators = new Vector<>();
         ParseTreeWalker.DEFAULT.walk(listener, tree);
-//        System.out.println(listener.query);
-//        System.out.println(ParserListener.expValues);
-//        System.out.println(ParserListener.operators);
+
         if (listener.query.isEmpty())
             throw new DBAppException("invalid SQL statement");
         String statement = listener.query.get("stmt").get(0);
@@ -1745,7 +1744,6 @@ public class DBApp implements DBAppInterface {
             } else
                 throw new DBAppException("Invalid clustering column");
 
-
         } else if (statement.equals("delete")) {
             String tName = listener.query.get("table").get(0);
             Hashtable<String, String> colVals = new Hashtable<>();
@@ -1784,9 +1782,12 @@ public class DBApp implements DBAppInterface {
             Iterator I = selectFromTable(arrSQLTerms, strarrOperators);
             return I;
         } else {
-            throw new DBAppException("Invalid SQL statement");
+            throw new DBAppException("Unsupported SQL statement");
         }
         return null;
+        }catch (Exception e){
+            throw new DBAppException(e.getMessage());
+        }
     }
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
@@ -1797,16 +1798,17 @@ public class DBApp implements DBAppInterface {
 //        app.parseSQL(new StringBuffer("insert into courses(course_id,course_name,date_added,hours) values('10000','db',2011-08-16,23)"));
 //        app.parseSQL(new StringBuffer("delete from courses where date_added= 1923-07-28 course_name=db"));
 //        app.parseSQL(new StringBuffer("delete from courses where date_added= 2011-08-16 course_name=db"));
-        long x = System.currentTimeMillis();
-        Iterator i=app.parseSQL(new StringBuffer("select * from courses where hours > 50"));
-        int count = 0;
-
-        while(i.hasNext())
-        {
-            System.out.println(i.next());
-            count++;
-        }
-        System.out.println(System.currentTimeMillis() - x);
+//        long x = System.currentTimeMillis();
+//        Iterator i=app.parseSQL(new StringBuffer("select * from courses where hours > 5 or course_name='db' and hours<20"));
+//        int count = 0;
+//
+//        while(i.hasNext())
+//        {
+//            System.out.println(i.next());
+//            count++;
+//        }
+//
+//        System.out.println(System.currentTimeMillis() - x);
 //        Table t= app.readTable("courses");
 //        int c=0;
 //        for (int size : t.pageSizes) c+= size;
