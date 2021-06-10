@@ -119,7 +119,6 @@ public class DBApp implements DBAppInterface {
 
     static Vector<Integer> stringIndex;
 
-<<<<<<< Updated upstream
     public void editMetaDataIndex(String tableName, String[] columnNames) throws DBAppException {
         try{
             Vector<String[]> data = new Vector<>();
@@ -159,9 +158,7 @@ public class DBApp implements DBAppInterface {
         }
 
     }
-=======
     @Override
->>>>>>> Stashed changes
     public void createIndex(String tableName, String[] columnNames) throws DBAppException {
         HashSet<String> hs = new HashSet<>();
         for (String name : columnNames)
@@ -211,13 +208,9 @@ public class DBApp implements DBAppInterface {
             divideBucket(b, tableName, currentTable.indices.size());
         currentTable.indices.add(columnNames);
         writeTable(currentTable);
-<<<<<<< Updated upstream
         writeGrid(index, tableName+"_index_"+(currentTable.indices.size()-1));
         editMetaDataIndex(tableName, columnNames);
-=======
-        writeGrid(index, tableName + "_index_" + (currentTable.indices.size() - 1));
 
->>>>>>> Stashed changes
 
     }
 
@@ -312,12 +305,6 @@ public class DBApp implements DBAppInterface {
     }
 
 
-    public int getBucket(Grid index, Hashtable<String, Object> row) {
-        int min = 0, max = index.ranges.length - 1;
-        while (min <= max) {
-
-<<<<<<< Updated upstream
-
     public int getBucket( Grid index, Hashtable<String, Object> row)
     {
         if(!row.containsKey(index.columnName)){
@@ -333,9 +320,6 @@ public class DBApp implements DBAppInterface {
         {
 
             int mid = (min+max)>>1;
-=======
-            int mid = (min + max) >> 1;
->>>>>>> Stashed changes
             int compareMin, compareMax;
 //            System.out.println(index.ranges[mid].min+" "+" "+row.get(index.columnName)+" "+index.ranges[mid].max);
             if (index.charIndex != -1) {
@@ -920,7 +904,6 @@ public class DBApp implements DBAppInterface {
 
     }
 
-<<<<<<< Updated upstream
     public void validateSelection(SQLTerm[] sqlTerms, String[] arrayOperators){
         try{
             if(sqlTerms.length==0)
@@ -965,9 +948,6 @@ public class DBApp implements DBAppInterface {
         catch (Exception e) {
             e.printStackTrace();
         }
-=======
-    public void validateSelection(SQLTerm[] sqlTerms, String[] arrayOperators) {
->>>>>>> Stashed changes
 
     }
     public boolean isCompatible(String type, Object val){
@@ -1197,7 +1177,6 @@ public class DBApp implements DBAppInterface {
     }
 
 
-<<<<<<< Updated upstream
     public HashSet<Object>searchIndex(Grid index, Vector<SQLTerm>terms) throws DBAppException {
         HashSet<Object>ans = new HashSet<>();
         loop: for(int i=0;i<index.ranges.length;i++)
@@ -1218,29 +1197,6 @@ public class DBApp implements DBAppInterface {
 
                     else if(term._strOperator.equals(">") && lessThanMAx<=0)
                         continue loop;
-=======
-    public HashSet<Object> searchIndex(Grid index, Vector<SQLTerm> terms) throws DBAppException {
-        HashSet<Object> ans = new HashSet<>();
-        loop:
-        for (int i = 0; i < index.ranges.length; i++) {
-            int greaterThanMin;
-            int lessThanMAx;
-            for (SQLTerm term : terms) {
-                if (term._strColumnName.equals(index.columnName)) {
-                    if (index.charIndex != -1) {
-                        String rowString = (String) term._objValue;
-                        greaterThanMin = compare(rowString.charAt(index.charIndex) + "", ((String) index.ranges[i].min).charAt(index.charIndex) + "");
-                        lessThanMAx = compare(((String) index.ranges[i].max).charAt(index.charIndex) + "", rowString.charAt(index.charIndex) + "");
-
-                    } else {
-                        greaterThanMin = compare(term._objValue, index.ranges[i].min);
-                        lessThanMAx = compare(index.ranges[i].max, term._objValue);
-                    }
-                    // comment: System.out.println(index.ranges[i].min+" "+term._objValue+" "+index.ranges[i].max);
-                    if (term._strOperator.equals("="))
-                        if (greaterThanMin < 0 || lessThanMAx < 0) continue loop;
->>>>>>> Stashed changes
-
                         else if (term._strOperator.equals(">") && lessThanMAx <= 0)
                             continue loop;
 
@@ -1305,7 +1261,6 @@ public class DBApp implements DBAppInterface {
 
 
         }
-        System.out.println(ans);
         return ans;
     }
 
@@ -1757,13 +1712,7 @@ public class DBApp implements DBAppInterface {
     }
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
-<<<<<<< Updated upstream
-        DBApp dbApp = new DBApp();
-        dbApp.init();
-        String table = "pcs";
-        String[] index = {"student_id"};
-        dbApp.createIndex(table, index);
-=======
+
         DBApp app = new DBApp();
 //        app.parseSQL(new StringBuffer("UPDATE courses set course_name='db' where date_added= 1923-07-28"));
 //        System.out.println(app.parseSQL(new StringBuffer("select hours,date_added,course_id,course_name from courses where course_name='db'")).next());
@@ -1775,8 +1724,6 @@ public class DBApp implements DBAppInterface {
 //        System.out.println(i.next());
 //        app.parseSQL(new StringBuffer("create table nada(name char(4) primary key check(name between 'AAA' and 'ZZZ')," +
 //                "age int check(age between 12 and 22))"));
-
->>>>>>> Stashed changes
 
     }
 }
