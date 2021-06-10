@@ -808,7 +808,7 @@ public class DBApp implements DBAppInterface {
                 }
 
             } else {
-                HashSet<Object> clusteringKeys = new HashSet<>();
+                HashSet<Object> clusteringKeys = searchIndex(g,terms);
                 HashMap<Integer, Vector<Object>> mapping = new HashMap<>();
                 for (Object key : clusteringKeys) {
                     int pageNumber = binarySearchTable(key, currentTable);
@@ -1135,7 +1135,7 @@ public class DBApp implements DBAppInterface {
 
         if (ans == -1)
             return null;
-        System.out.println(Arrays.toString(currentTable.indices.get(ans)));
+//        System.out.println(Arrays.toString(currentTable.indices.get(ans)));
         return readGrid(currentTable.name, ans);
 
     }
@@ -1163,7 +1163,7 @@ public class DBApp implements DBAppInterface {
             exp.add(o[i]);
             exp.add(a[i+1]);
         }
-        System.out.println(exp);
+//        System.out.println(exp);
         for(int i=0;i<exp.size();i++)
         {
             Object st = exp.get(i);
@@ -1793,33 +1793,16 @@ public class DBApp implements DBAppInterface {
     public static void main(String[] args) throws IOException, ClassNotFoundException, DBAppException, ParseException {
 
         DBApp app = new DBApp();
-//        app.parseSQL(new StringBuffer("UPDATE courses set course_name='db' where date_added= 1923-07-28"));
-//        System.out.println(app.parseSQL(new StringBuffer("select hours,date_added,course_id,course_name from courses where course_name='db'")).next());
-//        app.parseSQL(new StringBuffer("insert into courses(course_id,course_name,date_added,hours) values('10000','db',2011-08-16,23)"));
-//        app.parseSQL(new StringBuffer("delete from courses where date_added= 1923-07-28 course_name=db"));
-//        app.parseSQL(new StringBuffer("delete from courses where date_added= 2011-08-16 course_name=db"));
-//        long x = System.currentTimeMillis();
-//        Iterator i=app.parseSQL(new StringBuffer("select * from courses where hours > 5 or course_name='db' and hours<20"));
-//        int count = 0;
-//
-//        while(i.hasNext())
-//        {
-//            System.out.println(i.next());
-//            count++;
-//        }
-//
-//        System.out.println(System.currentTimeMillis() - x);
-//        Table t= app.readTable("courses");
-//        int c=0;
-//        for (int size : t.pageSizes) c+= size;
-//        System.out.println(c);
 
-//        app.parseSQL((new StringBuffer("create index course_index on courses(hours, date_added)")));
+        // this is for parsing sql querries and you just need to edit the query inside the string buffer
+        // iterator i is used to iterate on the result set from select statements
+        // iterator i is equal to null in the remaining operations
 
-//        while (i.hasNext())
-//        System.out.println(i.next());
-//        app.parseSQL(new StringBuffer("create table nada(name char(4) primary key check(name between 'AAA' and 'ZZZ')," +
-//                "age int check(age between 12 and 22))"));
+
+        Iterator i=app.parseSQL(new StringBuffer("select * from courses where hours = 5"));
+
+
+
 
 
 
