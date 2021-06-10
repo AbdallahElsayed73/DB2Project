@@ -93,7 +93,6 @@ public class DBApp implements DBAppInterface {
             Enumeration<String> enumeration = colNameType.keys();
             while (enumeration.hasMoreElements()) {
                 String key = enumeration.nextElement();
-
                 //Create record
                 String type = colNameType.get(key);
                 String min = (String) colNameMin.get(key);
@@ -103,7 +102,6 @@ public class DBApp implements DBAppInterface {
                 String[] record = {tableName, key, type, clust + "", "false", min, max};
                 //Write the record to file
                 writer.writeNext(record);
-
                 /* close the writer */
 
             }
@@ -1821,7 +1819,8 @@ public class DBApp implements DBAppInterface {
 //        app.parseSQL(new StringBuffer("create table nada(name char(4) primary key check(name between 'AAA' and 'ZZZ')," +
 //                "age int check(age between 12 and 22))"));
 
-
+//        app.parseSQL(new StringBuffer("create table tname (id char check(id between 1 and 6 ),name char primary key check (name between 'nnn' and 'zzz'))"));
+//        app.parseSQL(new StringBuffer("create table t2name (id char check(id between 1 and 6 ),name int primary key check (name between 'nnn' and 'zzz'))"));
 
 
 

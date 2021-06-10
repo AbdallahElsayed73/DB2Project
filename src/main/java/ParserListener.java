@@ -191,6 +191,7 @@ public class ParserListener extends SQLiteParserBaseListener {
             for (int i = 0; i < 4; i++) col[i] = new Vector();
             List<SQLiteParser.Column_defContext> columns = ctx.column_def();
             for (SQLiteParser.Column_defContext column : columns) {
+                boolean checkConst=false;
                 String colName=column.column_name().getText();
                 col[0].add(colName);
                 col[1].add(column.type_name().getText());
@@ -209,6 +210,7 @@ public class ParserListener extends SQLiteParserBaseListener {
                             query = new Hashtable<>();
                             return;
                         }else {
+
                             if(!l.get(0).getText().equals(colName)||!l.get(1).getText().toLowerCase(Locale.ROOT).equals("between")
                             ||!l.get(3).getText().toLowerCase(Locale.ROOT).equals("and"))
                             {
@@ -216,22 +218,42 @@ public class ParserListener extends SQLiteParserBaseListener {
                                 query = new Hashtable<>();
                                 return;
                             }else {
+                                String min=l.get(2).getText();
+                                String max=l.get(4).getText();
+                                min=((min.length())>1&&
+                                        ((min.charAt(0)=='"'&&min.charAt(min.length()-1)=='"')||
+                                        (min.charAt(0)==("'").charAt(0)&&min.charAt(min.length()-1)==("'").charAt(0))))?
+                                        min.substring(1,min.length()-1):min;
+                                max=((max.length())>1&&
+                                        ((max.charAt(0)=='"'&&max.charAt(max.length()-1)=='"')||
+                                                (max.charAt(0)==("'").charAt(0)&&max.charAt(max.length()-1)==("'").charAt(0))))?
+                                        max.substring(1,max.length()-1):max;
 
-                                col[2].add(l.get(2).getText());
-                                col[3].add(l.get(4).getText());
+                                col[2].add(min);
+                                col[3].add(max);
                             }
                         }
-
+                        checkConst=true;
                     } else {
                         System.out.println("Missing column range");
                         query = new Hashtable<>();
                         return;
                     }
+
                 }
-                if(!foundPk){
+                if(!checkConst)
+                {
+                    System.out.println("You should specify the column range");
                     query=new Hashtable<>();
                     return;
                 }
+
+
+            }
+            if(!foundPk){
+                System.out.println("You should specify the primary key");
+                query=new Hashtable<>();
+                return;
             }
             query.put("columns", col[0]);
             query.put("types", col[1]);

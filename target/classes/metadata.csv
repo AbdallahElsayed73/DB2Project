@@ -14,3 +14,6 @@
 "transcripts","student_id","java.lang.String","false","false","43-0000","99-9999"
 "pcs","pc_id","java.lang.Integer","true","true","0","20000"
 "pcs","student_id","java.lang.String","false","false","43-0000","99-9999"
+
+"tname","name","char","true","false","nnn","zzz"
+"tname","id","char","false","false","1","6"
